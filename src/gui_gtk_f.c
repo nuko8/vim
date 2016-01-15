@@ -88,7 +88,9 @@ static void gtk_form_send_configure(GtkForm *form);
 static void gtk_form_child_map(GtkWidget *widget, gpointer user_data);
 static void gtk_form_child_unmap(GtkWidget *widget, gpointer user_data);
 
+#ifndef GTK_DISABLE_DEPRECATED
 static GtkWidgetClass *parent_class = NULL;
+#endif
 
 /* Public interface
  */
@@ -98,7 +100,11 @@ gtk_form_new(void)
 {
     GtkForm *form;
 
+#ifdef GTK_DISABLE_DEPRECATED
+    form = g_object_new(GTK_TYPE_FORM, NULL);
+#else
     form = gtk_type_new(gtk_form_get_type());
+#endif
 
     return GTK_WIDGET(form);
 }
@@ -131,13 +137,21 @@ gtk_form_put(GtkForm	*form,
      * that gtk_widget_set_parent() realizes the widget if it's visible
      * and its parent is mapped.
      */
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_widget_get_realized(GTK_WIDGET(form)))
+#else
     if (GTK_WIDGET_REALIZED(form))
+#endif
 	gtk_form_attach_child_window(form, child);
 
     gtk_widget_set_parent(child_widget, GTK_WIDGET(form));
     gtk_widget_size_request(child->widget, NULL);
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_widget_get_realized(GTK_WIDGET(form)) && !gtk_widget_get_realized(child_widget))
+#else
     if (GTK_WIDGET_REALIZED(form) && !GTK_WIDGET_REALIZED(child_widget))
+#endif
 	gtk_form_realize_child(form, child);
 
     gtk_form_position_child(form, child, TRUE);
@@ -193,6 +207,9 @@ gtk_form_thaw(GtkForm *form)
 
 /* Basic Object handling procedures
  */
+#ifdef GTK_DISABLE_DEPRECATED
+G_DEFINE_TYPE(GtkForm, gtk_form, GTK_TYPE_CONTAINER)
+#else
     GtkType
 gtk_form_get_type(void)
 {
@@ -213,6 +230,7 @@ gtk_form_get_type(void)
     }
     return form_type;
 }
+#endif
 
     static void
 gtk_form_class_init(GtkFormClass *klass)
@@ -223,7 +241,9 @@ gtk_form_class_init(GtkFormClass *klass)
     widget_class = (GtkWidgetClass *) klass;
     container_class = (GtkContainerClass *) klass;
 
+#ifndef GTK_DISABLE_DEPRECATED
     parent_class = gtk_type_class(gtk_container_get_type());
+#endif
 
     widget_class->realize = gtk_form_realize;
     widget_class->unrealize = gtk_form_unrealize;
@@ -267,7 +287,11 @@ gtk_form_realize(GtkWidget *widget)
     g_return_if_fail(GTK_IS_FORM(widget));
 
     form = GTK_FORM(widget);
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_widget_set_realized(widget, TRUE);
+#else
     GTK_WIDGET_SET_FLAGS(form, GTK_REALIZED);
+#endif
 
     attributes.window_type = GDK_WINDOW_CHILD;
     attributes.x = widget->allocation.x;
@@ -308,7 +332,11 @@ gtk_form_realize(GtkWidget *widget)
 
 	gtk_form_attach_child_window(form, child);
 
+#ifdef GTK_DISABLE_DEPRECATED
+        if (gtk_widget_get_visible(child->widget))
+#else
 	if (GTK_WIDGET_VISIBLE(child->widget))
+#endif
 	    gtk_form_realize_child(form, child);
     }
 }
@@ -332,7 +360,11 @@ gtk_form_map(GtkWidget *widget)
 
     form = GTK_FORM(widget);
 
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_widget_set_mapped(widget, TRUE);
+#else
     GTK_WIDGET_SET_FLAGS(widget, GTK_MAPPED);
+#endif
 
     gdk_window_show(widget->window);
     gdk_window_show(form->bin_window);
@@ -341,8 +373,13 @@ gtk_form_map(GtkWidget *widget)
     {
 	GtkFormChild *child = tmp_list->data;
 
+#ifdef GTK_DISABLE_DEPRECATED
+        if (gtk_widget_get_visible(child->widget)
+                && !gtk_widget_get_mapped(child->widget))
+#else
 	if (GTK_WIDGET_VISIBLE(child->widget)
 		&& !GTK_WIDGET_MAPPED(child->widget))
+#endif
 	    gtk_widget_map(child->widget);
     }
 }
@@ -369,12 +406,21 @@ gtk_form_unrealize(GtkWidget *widget)
 
 	if (child->window != NULL)
 	{
+#ifdef GTK_DISABLE_DEPRECATED
+	    g_signal_handlers_disconnect_by_func(G_OBJECT(child->widget),
+                                                 G_CALLBACK(gtk_form_child_map),
+                                                 child);
+	    g_signal_handlers_disconnect_by_func(G_OBJECT(child->widget),
+                                                 G_CALLBACK(gtk_form_child_unmap),
+                                                 child);
+#else
 	    gtk_signal_disconnect_by_func(GTK_OBJECT(child->widget),
 					  GTK_SIGNAL_FUNC(gtk_form_child_map),
 					  child);
 	    gtk_signal_disconnect_by_func(GTK_OBJECT(child->widget),
 					  GTK_SIGNAL_FUNC(gtk_form_child_unmap),
 					  child);
+#endif
 
 	    gdk_window_set_user_data(child->window, NULL);
 	    gdk_window_destroy(child->window);
@@ -385,8 +431,13 @@ gtk_form_unrealize(GtkWidget *widget)
 	tmp_list = tmp_list->next;
     }
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (GTK_WIDGET_CLASS (gtk_form_parent_class)->unrealize)
+         (* GTK_WIDGET_CLASS (gtk_form_parent_class)->unrealize) (widget);
+#else
     if (GTK_WIDGET_CLASS (parent_class)->unrealize)
 	 (* GTK_WIDGET_CLASS (parent_class)->unrealize) (widget);
+#endif
 }
 
     static void
@@ -444,7 +495,11 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 	}
     }
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_widget_get_realized(widget))
+#else
     if (GTK_WIDGET_REALIZED(widget))
+#endif
     {
 	gdk_window_move_resize(widget->window,
 			       allocation->x, allocation->y,
@@ -480,8 +535,13 @@ gtk_form_expose(GtkWidget *widget, GdkEventExpose *event)
 	 * gtk1.x code synthesized expose events directly on the child widgets,
 	 * which can't be done in gtk2
 	 */
+#ifdef GTK_DISABLE_DEPRECATED
+        if (gtk_widget_is_drawable(child) && !gtk_widget_get_has_window(child)
+		&& child->window == event->window)
+#else
 	if (GTK_WIDGET_DRAWABLE(child) && GTK_WIDGET_NO_WINDOW(child)
 		&& child->window == event->window)
+#endif
 	{
 	    GdkEventExpose child_event;
 	    child_event = *event;
@@ -524,10 +584,17 @@ gtk_form_remove(GtkContainer *container, GtkWidget *widget)
     {
 	if (child->window)
 	{
+#ifdef GTK_DISABLE_DEPRECATED
+	    g_signal_handlers_disconnect_by_func(G_OBJECT(child->widget),
+					  G_CALLBACK(&gtk_form_child_map), child);
+	    g_signal_handlers_disconnect_by_func(G_OBJECT(child->widget),
+					  G_CALLBACK(&gtk_form_child_unmap), child);
+#else
 	    gtk_signal_disconnect_by_func(GTK_OBJECT(child->widget),
 					  GTK_SIGNAL_FUNC(&gtk_form_child_map), child);
 	    gtk_signal_disconnect_by_func(GTK_OBJECT(child->widget),
 					  GTK_SIGNAL_FUNC(&gtk_form_child_unmap), child);
+#endif
 
 	    /* FIXME: This will cause problems for reparenting NO_WINDOW
 	     * widgets out of a GtkForm
@@ -577,7 +644,11 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
     if (child->window != NULL)
 	return; /* been there, done that */
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (!gtk_widget_get_has_window(child->widget))
+#else
     if (GTK_WIDGET_NO_WINDOW(child->widget))
+#endif
     {
 	GtkWidget	*widget;
 	GdkWindowAttr	attributes;
@@ -610,12 +681,23 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 	 * Install signal handlers to map/unmap child->window
 	 * alongside with the actual widget.
 	 */
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(child->widget), "map",
+                         G_CALLBACK(&gtk_form_child_map), child);
+        g_signal_connect(G_OBJECT(child->widget), "unmap",
+                         G_CALLBACK(&gtk_form_child_unmap), child);
+#else
 	gtk_signal_connect(GTK_OBJECT(child->widget), "map",
 			   GTK_SIGNAL_FUNC(&gtk_form_child_map), child);
 	gtk_signal_connect(GTK_OBJECT(child->widget), "unmap",
 			   GTK_SIGNAL_FUNC(&gtk_form_child_unmap), child);
+#endif
     }
+#ifdef GTK_DISABLE_DEPRECATED
+    else if (!gtk_widget_get_realized(child->widget))
+#else
     else if (!GTK_WIDGET_REALIZED(child->widget))
+#endif
     {
 	gtk_widget_set_parent_window(child->widget, form->bin_window);
     }
@@ -646,9 +728,17 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
     {
 	if (!child->mapped)
 	{
+#ifdef GTK_DISABLE_DEPRECATED
+            if (gtk_widget_get_mapped(GTK_WIDGET(form)) && gtk_widget_get_visible(child->widget))
+#else
 	    if (GTK_WIDGET_MAPPED(form) && GTK_WIDGET_VISIBLE(child->widget))
+#endif
 	    {
+#ifdef GTK_DISABLE_DEPRECATED
+                if (!gtk_widget_get_mapped(child->widget))
+#else
 		if (!GTK_WIDGET_MAPPED(child->widget))
+#endif
 		    gtk_widget_map(child->widget);
 
 		child->mapped = TRUE;
@@ -660,7 +750,11 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 	{
 	    GtkAllocation allocation;
 
+#ifdef GTK_DISABLE_DEPRECATED
+            if (!gtk_widget_get_has_window(child->widget))
+#else
 	    if (GTK_WIDGET_NO_WINDOW(child->widget))
+#endif
 	    {
 		if (child->window)
 		{
@@ -691,7 +785,11 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 	{
 	    child->mapped = FALSE;
 
+#ifdef GTK_DISABLE_DEPRECATED
+            if (gtk_widget_get_mapped(child->widget))
+#else
 	    if (GTK_WIDGET_MAPPED(child->widget))
+#endif
 		gtk_widget_unmap(child->widget);
 	}
     }
