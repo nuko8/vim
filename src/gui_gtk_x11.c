@@ -698,7 +698,11 @@ gui_mch_stop_blink(void)
 {
     if (blink_timer)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+        g_source_remove(blink_timer);
+#else
 	gtk_timeout_remove(blink_timer);
+#endif
 	blink_timer = 0;
     }
     if (blink_state == BLINK_OFF)
@@ -706,22 +710,36 @@ gui_mch_stop_blink(void)
     blink_state = BLINK_NONE;
 }
 
+#ifdef GTK_DISABLE_DEPRECATED
+    static gboolean
+#else
     static gint
+#endif
 blink_cb(gpointer data UNUSED)
 {
     if (blink_state == BLINK_ON)
     {
 	gui_undraw_cursor();
 	blink_state = BLINK_OFF;
+#ifdef GTK_DISABLE_DEPRECATED
+	blink_timer = g_timeout_add((guint)blink_offtime,
+                                   (GSourceFunc) blink_cb, NULL);
+#else
 	blink_timer = gtk_timeout_add((guint32)blink_offtime,
 				   (GtkFunction) blink_cb, NULL);
+#endif
     }
     else
     {
 	gui_update_cursor(TRUE, FALSE);
 	blink_state = BLINK_ON;
+#ifdef GTK_DISABLE_DEPRECATED
+	blink_timer = g_timeout_add((guint)blink_ontime,
+                                   (GSourceFunc) blink_cb, NULL);
+#else
 	blink_timer = gtk_timeout_add((guint32)blink_ontime,
 				   (GtkFunction) blink_cb, NULL);
+#endif
     }
 
     return FALSE;		/* don't happen again */
@@ -736,14 +754,23 @@ gui_mch_start_blink(void)
 {
     if (blink_timer)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	g_source_remove(blink_timer);
+#else
 	gtk_timeout_remove(blink_timer);
+#endif
 	blink_timer = 0;
     }
     /* Only switch blinking on if none of the times is zero */
     if (blink_waittime && blink_ontime && blink_offtime && gui.in_focus)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	blink_timer = g_timeout_add((guint)blink_waittime,
+                                   (GSourceFunc) blink_cb, NULL);
+#else
 	blink_timer = gtk_timeout_add((guint32)blink_waittime,
 				   (GtkFunction) blink_cb, NULL);
+#endif
 	blink_state = BLINK_ON;
 	gui_update_cursor(TRUE, FALSE);
     }
@@ -758,7 +785,11 @@ enter_notify_event(GtkWidget *widget UNUSED,
 	gui_mch_start_blink();
 
     /* make sure keyboard input goes there */
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_socket_id == 0 || !gtk_widget_has_focus(gui.drawarea))
+#else
     if (gtk_socket_id == 0 || !GTK_WIDGET_HAS_FOCUS(gui.drawarea))
+#endif
 	gtk_widget_grab_focus(gui.drawarea);
 
     return FALSE;
@@ -1493,7 +1524,11 @@ static int mouse_timed_out = TRUE;
 /*
  * Timer used to recognize multiple clicks of the mouse button
  */
+#ifdef GTK_DISABLE_DEPRECATED
+    static gboolean
+#else
     static gint
+#endif
 mouse_click_timer_cb(gpointer data)
 {
     /* we don't use this information currently */
@@ -1505,7 +1540,11 @@ mouse_click_timer_cb(gpointer data)
 
 static guint motion_repeat_timer  = 0;
 static int   motion_repeat_offset = FALSE;
+#ifdef GTK_DEST_DEFAULT_ALL
+static gboolean  motion_repeat_timer_cb(gpointer);
+#else
 static gint  motion_repeat_timer_cb(gpointer);
+#endif
 
     static void
 process_motion_notify(int x, int y, GdkModifierType state)
@@ -1577,15 +1616,24 @@ process_motion_notify(int x, int y, GdkModifierType state)
 
 	/* shoot again */
 	if (!motion_repeat_timer)
+#ifdef GTK_DISABLE_DEPRECATED
+	    motion_repeat_timer = g_timeout_add((guint)delay,
+						motion_repeat_timer_cb, NULL);
+#else
 	    motion_repeat_timer = gtk_timeout_add((guint32)delay,
 						motion_repeat_timer_cb, NULL);
+#endif
     }
 }
 
 /*
  * Timer used to recognize multiple clicks of the mouse button.
  */
+#ifdef GTK_DISABLE_DEPRECATED
+    static gboolean
+#else
     static gint
+#endif
 motion_repeat_timer_cb(gpointer data UNUSED)
 {
     int		    x;
@@ -1668,7 +1716,11 @@ button_press_event(GtkWidget *widget,
     gui.event_time = event->time;
 
     /* Make sure we have focus now we've been selected */
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_socket_id != 0 && !gtk_widget_has_focus(widget))
+#else
     if (gtk_socket_id != 0 && !GTK_WIDGET_HAS_FOCUS(widget))
+#endif
 	gtk_widget_grab_focus(widget);
 
     /*
@@ -1684,14 +1736,23 @@ button_press_event(GtkWidget *widget,
     /* Handle multiple clicks */
     if (!mouse_timed_out && mouse_click_timer)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	g_source_remove(mouse_click_timer);
+#else
 	gtk_timeout_remove(mouse_click_timer);
+#endif
 	mouse_click_timer = 0;
 	repeated_click = TRUE;
     }
 
     mouse_timed_out = FALSE;
+#ifdef GTK_DISABLE_DEPRECATED
+    mouse_click_timer = g_timeout_add((guint)p_mouset,
+				  mouse_click_timer_cb, &mouse_timed_out);
+#else
     mouse_click_timer = gtk_timeout_add((guint32)p_mouset,
 				  mouse_click_timer_cb, &mouse_timed_out);
+#endif
 
     switch (event->button)
     {
@@ -1730,7 +1791,11 @@ scroll_event(GtkWidget *widget,
     int	    button;
     int_u   vim_modifiers;
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_socket_id != 0 && !gtk_widget_has_focus(widget))
+#else
     if (gtk_socket_id != 0 && !GTK_WIDGET_HAS_FOCUS(widget))
+#endif
 	gtk_widget_grab_focus(widget);
 
     switch (event->direction)
@@ -1781,7 +1846,11 @@ button_release_event(GtkWidget *widget UNUSED,
        area .*/
     if (motion_repeat_timer)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	g_source_remove(motion_repeat_timer);
+#else
 	gtk_timeout_remove(motion_repeat_timer);
+#endif
 	motion_repeat_timer = 0;
     }
 
@@ -2432,8 +2501,13 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 				     GDK_WINDOW_XWINDOW(gui.mainwin->window));
     }
     gtk_widget_add_events(gui.mainwin, GDK_PROPERTY_CHANGE_MASK);
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.mainwin), "property-notify-event",
+                     G_CALLBACK(property_event), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.mainwin), "property_notify_event",
 		       GTK_SIGNAL_FUNC(property_event), NULL);
+#endif
 #endif
 }
 
@@ -2525,11 +2599,19 @@ drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
     if (!sbar || (!gui.which_scrollbars[SBAR_LEFT]
 				    && firstwin->w_scrollbars[SBAR_RIGHT].id))
 	sbar = firstwin->w_scrollbars[SBAR_RIGHT].id;
+#ifdef GTK_DISABLE_DEPRECATED
+    if (sbar && gtk_widget_get_realized(sbar) && sbar->allocation.width)
+#else
     if (sbar && GTK_WIDGET_REALIZED(sbar) && sbar->allocation.width)
+#endif
 	gui.scrollbar_width = sbar->allocation.width;
 
     sbar = gui.bottom_sbar.id;
+#ifdef GTK_DISABLE_DEPRECATED
+    if (sbar && gtk_widget_get_realized(sbar) && sbar->allocation.height)
+#else
     if (sbar && GTK_WIDGET_REALIZED(sbar) && sbar->allocation.height)
+#endif
 	gui.scrollbar_height = sbar->allocation.height;
 }
 
@@ -2612,10 +2694,17 @@ get_item_dimensions(GtkWidget *widget, GtkOrientation orientation)
 	}
     }
 #endif
+#ifdef GTK_DISABLE_DEPRECATED
+    if (widget != NULL
+	    && item_orientation == orientation
+	    && gtk_widget_get_realized(widget)
+	    && gtk_widget_get_visible(widget))
+#else
     if (widget != NULL
 	    && item_orientation == orientation
 	    && GTK_WIDGET_REALIZED(widget)
 	    && GTK_WIDGET_VISIBLE(widget))
+#endif
     {
 	if (orientation == GTK_ORIENTATION_HORIZONTAL)
 	    return widget->allocation.height;
@@ -2815,7 +2904,9 @@ set_toolbar_style(GtkToolbar *toolbar)
 	style = GTK_TOOLBAR_ICONS;
 
     gtk_toolbar_set_style(toolbar, style);
+#ifndef GTK_DISABLE_DEPRECATED
     gtk_toolbar_set_tooltips(toolbar, (toolbar_flags & TOOLBAR_TOOLTIPS) != 0);
+#endif
 
     switch (tbis_flags)
     {
@@ -2847,7 +2938,9 @@ set_toolbar_style(GtkToolbar *toolbar)
 #if defined(FEAT_GUI_TABLINE) || defined(PROTO)
 static int ignore_tabline_evt = FALSE;
 static GtkWidget *tabline_menu;
+#ifndef GTK_DISABLE_DEPRECATED
 static GtkTooltips *tabline_tooltip;
+#endif
 static int clicked_page;	    /* page clicked in tab line */
 
 /*
@@ -2872,9 +2965,15 @@ add_tabline_menu_item(GtkWidget *menu, char_u *text, int resp)
     CONVERT_TO_UTF8_FREE(utf_text);
 
     gtk_container_add(GTK_CONTAINER(menu), item);
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(item), "activate",
+	    G_CALLBACK(tabline_menu_handler),
+	    GINT_TO_POINTER(resp));
+#else
     gtk_signal_connect(GTK_OBJECT(item), "activate",
 	    GTK_SIGNAL_FUNC(tabline_menu_handler),
 	    (gpointer)(long)resp);
+#endif
 }
 
 /*
@@ -2918,8 +3017,13 @@ on_tabline_menu(GtkWidget *widget, GdkEvent *event)
 
 	tabwin = gdk_window_at_pointer(&x, &y);
 	gdk_window_get_user_data(tabwin, (gpointer)&tabwidget);
+#ifdef GTK_DISABLE_DEPRECATED
+	clicked_page = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(tabwidget),
+                                                         "tab_num"));
+#else
 	clicked_page = (int)(long)gtk_object_get_user_data(
 						       GTK_OBJECT(tabwidget));
+#endif
 
 	/* If the event was generated for 3rd button popup the menu. */
 	if (bevent->button == 3)
@@ -2950,7 +3054,11 @@ on_tabline_menu(GtkWidget *widget, GdkEvent *event)
     static void
 on_select_tab(
 	GtkNotebook	*notebook UNUSED,
+#ifdef GTK_DISABLE_DEPRECATED
+        gpointer       *page UNUSED,
+#else
 	GtkNotebookPage *page UNUSED,
+#endif
 	gint		idx,
 	gpointer	data UNUSED)
 {
@@ -2975,7 +3083,11 @@ gui_mch_show_tabline(int showit)
 	gtk_notebook_set_show_tabs(GTK_NOTEBOOK(gui.tabline), showit);
 	update_window_manager_hints(0, 0);
 	if (showit)
+#ifdef GTK_DISABLE_DEPRECATED
+            gtk_widget_set_can_focus(GTK_WIDGET(gui.tabline), FALSE);
+#else
 	    GTK_WIDGET_UNSET_FLAGS(GTK_WIDGET(gui.tabline), GTK_CAN_FOCUS);
+#endif
     }
 
     gui_mch_update();
@@ -3038,8 +3150,13 @@ gui_mch_update_tabline(void)
 	}
 
 	event_box = gtk_notebook_get_tab_label(GTK_NOTEBOOK(gui.tabline), page);
+#ifdef GTK_DISABLE_DEPRECATED
+        g_object_set_data(G_OBJECT(event_box), "tab_num",
+                                                     GINT_TO_POINTER(tab_num));
+#else
 	gtk_object_set_user_data(GTK_OBJECT(event_box),
 						     (gpointer)(long)tab_num);
+#endif
 	label = GTK_BIN(event_box)->child;
 	get_tabline_label(tp, FALSE);
 	labeltext = CONVERT_TO_UTF8(NameBuff);
@@ -3048,8 +3165,12 @@ gui_mch_update_tabline(void)
 
 	get_tabline_label(tp, TRUE);
 	labeltext = CONVERT_TO_UTF8(NameBuff);
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_widget_set_tooltip_text(event_box, (const gchar *)labeltext);
+#else
 	gtk_tooltips_set_tip(GTK_TOOLTIPS(tabline_tooltip), event_box,
 			     (const char *)labeltext, NULL);
+#endif
 	CONVERT_TO_UTF8_FREE(labeltext);
     }
 
@@ -3057,8 +3178,13 @@ gui_mch_update_tabline(void)
     while (gtk_notebook_get_nth_page(GTK_NOTEBOOK(gui.tabline), nr) != NULL)
 	gtk_notebook_remove_page(GTK_NOTEBOOK(gui.tabline), nr);
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_notebook_get_current_page(GTK_NOTEBOOK(gui.tabline)) != curtabidx)
+        gtk_notebook_set_current_page(GTK_NOTEBOOK(gui.tabline), curtabidx);
+#else
     if (gtk_notebook_current_page(GTK_NOTEBOOK(gui.tabline)) != curtabidx)
 	gtk_notebook_set_page(GTK_NOTEBOOK(gui.tabline), curtabidx);
+#endif
 
     /* Make sure everything is in place before drawing text. */
     gui_mch_update();
@@ -3077,8 +3203,13 @@ gui_mch_set_curtab(nr)
 	return;
 
     ignore_tabline_evt = TRUE;
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gtk_notebook_get_current_page(GTK_NOTEBOOK(gui.tabline)) != nr - 1)
+	gtk_notebook_set_current_page(GTK_NOTEBOOK(gui.tabline), nr - 1);
+#else
     if (gtk_notebook_current_page(GTK_NOTEBOOK(gui.tabline)) != nr - 1)
 	gtk_notebook_set_page(GTK_NOTEBOOK(gui.tabline), nr - 1);
+#endif
     ignore_tabline_evt = FALSE;
 }
 
@@ -3257,14 +3388,26 @@ gui_mch_init(void)
     gui.text_context = gtk_widget_create_pango_context(gui.mainwin);
     pango_context_set_base_dir(gui.text_context, PANGO_DIRECTION_LTR);
 
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_container_set_border_width(GTK_CONTAINER(gui.mainwin), 0);
+#else
     gtk_container_border_width(GTK_CONTAINER(gui.mainwin), 0);
+#endif
     gtk_widget_add_events(gui.mainwin, GDK_VISIBILITY_NOTIFY_MASK);
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.mainwin), "delete-event",
+                     G_CALLBACK(&delete_event_cb), NULL);
+
+    g_signal_connect(G_OBJECT(gui.mainwin), "realize",
+                     G_CALLBACK(&mainwin_realize), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.mainwin), "delete_event",
 		       GTK_SIGNAL_FUNC(&delete_event_cb), NULL);
 
     gtk_signal_connect(GTK_OBJECT(gui.mainwin), "realize",
 		       GTK_SIGNAL_FUNC(&mainwin_realize), NULL);
+#endif
 #ifdef HAVE_GTK_MULTIHEAD
     g_signal_connect(G_OBJECT(gui.mainwin), "screen_changed",
 		     G_CALLBACK(&mainwin_screen_changed_cb), NULL);
@@ -3382,10 +3525,14 @@ gui_mch_init(void)
     gtk_notebook_set_show_border(GTK_NOTEBOOK(gui.tabline), FALSE);
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(gui.tabline), FALSE);
     gtk_notebook_set_scrollable(GTK_NOTEBOOK(gui.tabline), TRUE);
+#ifndef GTK_DISABLE_DEPRECATED
     gtk_notebook_set_tab_border(GTK_NOTEBOOK(gui.tabline), FALSE);
+#endif
 
+#ifndef GTK_DISABLE_DEPRECATED
     tabline_tooltip = gtk_tooltips_new();
     gtk_tooltips_enable(GTK_TOOLTIPS(tabline_tooltip));
+#endif
 
     {
 	GtkWidget *page, *label, *event_box;
@@ -3398,23 +3545,41 @@ gui_mch_init(void)
 	gtk_widget_show(label);
 	event_box = gtk_event_box_new();
 	gtk_widget_show(event_box);
+#ifdef GTK_DISABLE_DEPRECATED
+	g_object_set_data(G_OBJECT(event_box), "tab_num", GINT_TO_POINTER(1L));
+#else
 	gtk_object_set_user_data(GTK_OBJECT(event_box), (gpointer)1L);
+#endif
 	gtk_misc_set_padding(GTK_MISC(label), 2, 2);
 	gtk_container_add(GTK_CONTAINER(event_box), label);
 	gtk_notebook_set_tab_label(GTK_NOTEBOOK(gui.tabline), page, event_box);
     }
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.tabline), "switch-page",
+                     G_CALLBACK(on_select_tab), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.tabline), "switch_page",
 		       GTK_SIGNAL_FUNC(on_select_tab), NULL);
+#endif
 
     /* Create a popup menu for the tab line and connect it. */
     tabline_menu = create_tabline_menu();
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect_swapped(G_OBJECT(gui.tabline), "button-press-event",
+	    G_CALLBACK(on_tabline_menu), G_OBJECT(tabline_menu));
+#else
     gtk_signal_connect_object(GTK_OBJECT(gui.tabline), "button_press_event",
 	    GTK_SIGNAL_FUNC(on_tabline_menu), GTK_OBJECT(tabline_menu));
 #endif
+#endif
 
     gui.formwin = gtk_form_new();
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_container_set_border_width(GTK_CONTAINER(gui.formwin), 0);
+#else
     gtk_container_border_width(GTK_CONTAINER(gui.formwin), 0);
+#endif
     gtk_widget_set_events(gui.formwin, GDK_EXPOSURE_MASK);
 
     gui.drawarea = gtk_drawing_area_new();
@@ -3439,10 +3604,17 @@ gui_mch_init(void)
 
     /* For GtkSockets, key-presses must go to the focus widget (drawarea)
      * and not the window. */
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect((gtk_socket_id == 0) ? G_OBJECT(gui.mainwin)
+				          : G_OBJECT(gui.drawarea),
+		       "key-press-event",
+		       G_CALLBACK(key_press_event), NULL);
+#else
     gtk_signal_connect((gtk_socket_id == 0) ? GTK_OBJECT(gui.mainwin)
 					    : GTK_OBJECT(gui.drawarea),
 		       "key_press_event",
 		       GTK_SIGNAL_FUNC(key_press_event), NULL);
+#endif
 #if defined(FEAT_XIM)
     /* Also forward key release events for the benefit of GTK+ 2 input
      * modules.  Try CTRL-SHIFT-xdigits to enter a Unicode code point. */
@@ -3451,6 +3623,15 @@ gui_mch_init(void)
 		     "key_release_event",
 		     G_CALLBACK(&key_release_event), NULL);
 #endif
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.drawarea), "realize",
+                     G_CALLBACK(drawarea_realize_cb), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "unrealize",
+                     G_CALLBACK(drawarea_unrealize_cb), NULL);
+
+    g_signal_connect_after(G_OBJECT(gui.drawarea), "style-set",
+                           G_CALLBACK(&drawarea_style_set_cb), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "realize",
 		       GTK_SIGNAL_FUNC(drawarea_realize_cb), NULL);
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "unrealize",
@@ -3458,6 +3639,7 @@ gui_mch_init(void)
 
     gtk_signal_connect_after(GTK_OBJECT(gui.drawarea), "style_set",
 			     GTK_SIGNAL_FUNC(&drawarea_style_set_cb), NULL);
+#endif
 
     gui.visibility = GDK_VISIBILITY_UNOBSCURED;
 
@@ -3468,7 +3650,11 @@ gui_mch_init(void)
 
     if (gtk_socket_id != 0)
 	/* make sure keyboard input can go to the drawarea */
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_widget_set_can_focus(gui.drawarea, TRUE);
+#else
 	GTK_WIDGET_SET_FLAGS(gui.drawarea, GTK_CAN_FOCUS);
+#endif
 
     /*
      * Set clipboard specific atoms
@@ -3483,10 +3669,17 @@ gui_mch_init(void)
      */
     gui.border_offset = gui.border_width;
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.mainwin), "visibility-notify-event",
+                     G_CALLBACK(visibility_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "expose-event",
+                     G_CALLBACK(expose_event), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.mainwin), "visibility_notify_event",
 		       GTK_SIGNAL_FUNC(visibility_event), NULL);
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "expose_event",
 		       GTK_SIGNAL_FUNC(expose_event), NULL);
+#endif
 
     /*
      * Only install these enter/leave callbacks when 'p' in 'guioptions'.
@@ -3494,10 +3687,17 @@ gui_mch_init(void)
      */
     if (vim_strchr(p_go, GO_POINTER) != NULL)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(gui.drawarea), "leave-notify-event",
+                         G_CALLBACK(leave_notify_event), NULL);
+	g_signal_connect(G_OBJECT(gui.drawarea), "enter-notify-event",
+                         G_CALLBACK(enter_notify_event), NULL);
+#else
 	gtk_signal_connect(GTK_OBJECT(gui.drawarea), "leave_notify_event",
 			   GTK_SIGNAL_FUNC(leave_notify_event), NULL);
 	gtk_signal_connect(GTK_OBJECT(gui.drawarea), "enter_notify_event",
 			   GTK_SIGNAL_FUNC(enter_notify_event), NULL);
+#endif
     }
 
     /* Real windows can get focus ... GtkPlug, being a mere container can't,
@@ -3506,25 +3706,56 @@ gui_mch_init(void)
      */
     if (gtk_socket_id == 0)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(gui.mainwin), "focus-out-event",
+                         G_CALLBACK(focus_out_event), NULL);
+	g_signal_connect(G_OBJECT(gui.mainwin), "focus-in-event",
+                         G_CALLBACK(focus_in_event), NULL);
+#else
 	gtk_signal_connect(GTK_OBJECT(gui.mainwin), "focus_out_event",
 			       GTK_SIGNAL_FUNC(focus_out_event), NULL);
 	gtk_signal_connect(GTK_OBJECT(gui.mainwin), "focus_in_event",
 			       GTK_SIGNAL_FUNC(focus_in_event), NULL);
+#endif
     }
     else
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(gui.drawarea), "focus-out-event",
+                         G_CALLBACK(focus_out_event), NULL);
+	g_signal_connect(G_OBJECT(gui.drawarea), "focus-in-event",
+                         G_CALLBACK(focus_in_event), NULL);
+#else
 	gtk_signal_connect(GTK_OBJECT(gui.drawarea), "focus_out_event",
 			       GTK_SIGNAL_FUNC(focus_out_event), NULL);
 	gtk_signal_connect(GTK_OBJECT(gui.drawarea), "focus_in_event",
 			       GTK_SIGNAL_FUNC(focus_in_event), NULL);
+#endif
 #ifdef FEAT_GUI_TABLINE
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(gui.tabline), "focus-out-event",
+                         G_CALLBACK(focus_out_event), NULL);
+	g_signal_connect(G_OBJECT(gui.tabline), "focus-in-event",
+                         G_CALLBACK(focus_in_event), NULL);
+#else
 	gtk_signal_connect(GTK_OBJECT(gui.tabline), "focus_out_event",
 			       GTK_SIGNAL_FUNC(focus_out_event), NULL);
 	gtk_signal_connect(GTK_OBJECT(gui.tabline), "focus_in_event",
 			       GTK_SIGNAL_FUNC(focus_in_event), NULL);
+#endif
 #endif /* FEAT_GUI_TABLINE */
     }
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.drawarea), "motion-notify-event",
+                     G_CALLBACK(motion_notify_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "button-press-event",
+                     G_CALLBACK(button_press_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "button-release-event",
+                     G_CALLBACK(button_release_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "scroll-event",
+		     G_CALLBACK(&scroll_event), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "motion_notify_event",
 		       GTK_SIGNAL_FUNC(motion_notify_event), NULL);
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "button_press_event",
@@ -3533,19 +3764,32 @@ gui_mch_init(void)
 		       GTK_SIGNAL_FUNC(button_release_event), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "scroll_event",
 		     G_CALLBACK(&scroll_event), NULL);
+#endif
 
     /*
      * Add selection handler functions.
      */
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.drawarea), "selection-clear-event",
+                     G_CALLBACK(selection_clear_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "selection-received",
+                     G_CALLBACK(selection_received_cb), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "selection_clear_event",
 		       GTK_SIGNAL_FUNC(selection_clear_event), NULL);
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "selection_received",
 		       GTK_SIGNAL_FUNC(selection_received_cb), NULL);
+#endif
 
     gui_gtk_set_selection_targets();
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.drawarea), "selection-get",
+                     G_CALLBACK(selection_get_cb), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "selection_get",
 		       GTK_SIGNAL_FUNC(selection_get_cb), NULL);
+#endif
 
     /* Pretend we don't have input focus, we will get an event if we do. */
     gui.in_focus = FALSE;
@@ -3800,8 +4044,13 @@ gui_mch_open(void)
      * changed them). */
     highlight_gui_started();	/* re-init colors and fonts */
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.mainwin), "destroy",
+                     G_CALLBACK(mainwin_destroy_cb), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.mainwin), "destroy",
 		       GTK_SIGNAL_FUNC(mainwin_destroy_cb), NULL);
+#endif
 
 #ifdef FEAT_HANGULIN
     hangul_keyboard_set();
@@ -3817,15 +4066,25 @@ gui_mch_open(void)
      * manager upon us and should not interfere with what VIM is requesting
      * upon startup.
      */
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.formwin), "configure-event",
+                     G_CALLBACK(form_configure_event), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.formwin), "configure_event",
 		       GTK_SIGNAL_FUNC(form_configure_event), NULL);
+#endif
 
 #ifdef FEAT_DND
     /* Set up for receiving DND items. */
     gui_gtk_set_dnd_targets();
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(gui.drawarea), "drag-data-received",
+                     G_CALLBACK(drag_data_received_cb), NULL);
+#else
     gtk_signal_connect(GTK_OBJECT(gui.drawarea), "drag_data_received",
 		       GTK_SIGNAL_FUNC(drag_data_received_cb), NULL);
+#endif
 #endif
 
 	/* With GTK+ 2, we need to iconify the window before calling show()
@@ -4085,7 +4344,11 @@ gui_mch_enable_menu(int showit)
 	widget = gui.menubar;
 
     /* Do not disable the menu while starting up, otherwise F10 doesn't work. */
+#ifdef GTK_DISABLE_DEPRECATED
+    if (!showit != !gtk_widget_get_visible(widget) && !gui.starting)
+#else
     if (!showit != !GTK_WIDGET_VISIBLE(widget) && !gui.starting)
+#endif
     {
 	if (showit)
 	    gtk_widget_show(widget);
@@ -4116,7 +4379,11 @@ gui_mch_show_toolbar(int showit)
     if (showit)
 	set_toolbar_style(GTK_TOOLBAR(gui.toolbar));
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (!showit != !gtk_widget_get_visible(widget))
+#else
     if (!showit != !GTK_WIDGET_VISIBLE(widget))
+#endif
     {
 	if (showit)
 	    gtk_widget_show(widget);
@@ -5240,7 +5507,11 @@ gui_mch_beep(void)
 #ifdef HAVE_GTK_MULTIHEAD
     GdkDisplay *display;
 
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gui.mainwin != NULL && gtk_widget_get_realized(gui.mainwin))
+#else
     if (gui.mainwin != NULL && GTK_WIDGET_REALIZED(gui.mainwin))
+#endif
 	display = gtk_widget_get_display(gui.mainwin);
     else
 	display = gdk_display_get_default();
@@ -5405,7 +5676,11 @@ gui_mch_update(void)
 	g_main_context_iteration(NULL, TRUE);
 }
 
+#ifdef GTK_DISABLE_DEPRECATED
+    static gboolean
+#else
     static gint
+#endif
 input_timer_cb(gpointer data)
 {
     int *timed_out = (int *) data;
@@ -5474,7 +5749,11 @@ gui_mch_wait_for_chars(long wtime)
      * time */
 
     if (wtime > 0)
+#ifdef GTK_DISABLE_DEPRECATED
+	timer = g_timeout_add((guint)wtime, input_timer_cb, &timed_out);
+#else
 	timer = gtk_timeout_add((guint32)wtime, input_timer_cb, &timed_out);
+#endif
     else
 	timer = 0;
 
@@ -5508,7 +5787,11 @@ gui_mch_wait_for_chars(long wtime)
 	if (input_available())
 	{
 	    if (timer != 0 && !timed_out)
+#ifdef GTK_DISABLE_DEPRECATED
+		g_source_remove(timer);
+#else
 		gtk_timeout_remove(timer);
+#endif
 	    return OK;
 	}
     } while (wtime < 0 || !timed_out);
@@ -5532,7 +5815,11 @@ gui_mch_wait_for_chars(long wtime)
 gui_mch_flush(void)
 {
 #ifdef HAVE_GTK_MULTIHEAD
+#ifdef GTK_DISABLE_DEPRECATED
+    if (gui.mainwin != NULL && gtk_widget_get_realized(gui.mainwin))
+#else
     if (gui.mainwin != NULL && GTK_WIDGET_REALIZED(gui.mainwin))
+#endif
 	gdk_display_sync(gtk_widget_get_display(gui.mainwin));
 #else
     gdk_flush(); /* historical misnomer: calls XSync(), not XFlush() */
@@ -5759,7 +6046,11 @@ gui_mch_menu_grey(vimmenu_T *menu, int grey)
 
     gui_mch_menu_hidden(menu, FALSE);
     /* Be clever about bitfields versus true booleans here! */
+#ifdef GTK_DISABLE_DEPRECATED
+    if (!gtk_widget_get_sensitive(menu->id) == !grey)
+#else
     if (!GTK_WIDGET_SENSITIVE(menu->id) == !grey)
+#endif
     {
 	gtk_widget_set_sensitive(menu->id, !grey);
 	gui_mch_update();
@@ -5777,7 +6068,11 @@ gui_mch_menu_hidden(vimmenu_T *menu, int hidden)
 
     if (hidden)
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	if (gtk_widget_get_visible(menu->id))
+#else
 	if (GTK_WIDGET_VISIBLE(menu->id))
+#endif
 	{
 	    gtk_widget_hide(menu->id);
 	    gui_mch_update();
@@ -5785,7 +6080,11 @@ gui_mch_menu_hidden(vimmenu_T *menu, int hidden)
     }
     else
     {
+#ifdef GTK_DISABLE_DEPRECATED
+	if (!gtk_widget_get_visible(menu->id))
+#else
 	if (!GTK_WIDGET_VISIBLE(menu->id))
+#endif
 	{
 	    gtk_widget_show(menu->id);
 	    gui_mch_update();

@@ -468,7 +468,11 @@ gui_mch_add_menu(vimmenu_T *menu, int idx)
     menu->tearoff_handle = gtk_tearoff_menu_item_new();
     if (vim_strchr(p_go, GO_TEAROFF) != NULL)
 	gtk_widget_show(menu->tearoff_handle);
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_menu_shell_prepend(GTK_MENU_SHELL(menu->submenu_id), menu->tearoff_handle);
+#else
     gtk_menu_prepend(GTK_MENU(menu->submenu_id), menu->tearoff_handle);
+#endif
 }
 
     static void
@@ -494,7 +498,16 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx)
 
 	if (menu_is_separator(menu->name))
 	{
+#ifdef GTK_DISABLE_DEPRECATED
+            GtkToolItem *item = gtk_separator_tool_item_new();
+            gtk_separator_tool_item_set_draw(GTK_SEPARATOR_TOOL_ITEM(item), TRUE);
+            gtk_tool_item_set_expand(GTK_TOOL_ITEM(item), FALSE);
+            gtk_widget_show(GTK_WIDGET(item));
+
+            gtk_toolbar_insert(toolbar, item, idx);
+#else
 	    gtk_toolbar_insert_space(toolbar, idx);
+#endif
 	    menu->id = NULL;
 	}
 	else
@@ -509,6 +522,23 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx)
 		 * a nasty GTK error message, skip the tooltip. */
 		CONVERT_TO_UTF8_FREE(tooltip);
 
+#ifdef GTK_DISABLE_DEPRECATED
+            {
+                GtkWidget *icon;
+                GtkToolItem *item;
+
+                icon = create_menu_icon(menu, gtk_toolbar_get_icon_size(toolbar));
+                item = gtk_tool_button_new(icon, (const gchar *)text);
+                gtk_tool_item_set_tooltip_text(item, (const gchar *)tooltip);
+                g_signal_connect(G_OBJECT(item), "clicked",
+                                 G_CALLBACK(&menu_item_activate), menu);
+                gtk_widget_show_all(GTK_WIDGET(item));
+
+                gtk_toolbar_insert(toolbar, item, idx);
+
+                menu->id = GTK_WIDGET(item);
+            }
+#else
 	    menu->id = gtk_toolbar_insert_item(
 		    toolbar,
 		    (const char *)text,
@@ -518,10 +548,16 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx)
 		    G_CALLBACK(&menu_item_activate),
 		    menu,
 		    idx);
+#endif
 
 	    if (gtk_socket_id != 0)
+#ifdef GTK_DISABLE_DEPRECATED
+		g_signal_connect(G_OBJECT(menu->id), "focus-in-event",
+			G_CALLBACK(toolbar_button_focus_in_event), NULL);
+#else
 		gtk_signal_connect(GTK_OBJECT(menu->id), "focus_in_event",
 			GTK_SIGNAL_FUNC(toolbar_button_focus_in_event), NULL);
+#endif
 
 	    CONVERT_TO_UTF8_FREE(text);
 	    CONVERT_TO_UTF8_FREE(tooltip);
@@ -545,7 +581,11 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx)
 	    menu->id = gtk_menu_item_new();
 	    gtk_widget_set_sensitive(menu->id, FALSE);
 	    gtk_widget_show(menu->id);
+#ifdef GTK_DISABLE_DEPRECATED
+            gtk_menu_shell_insert(GTK_MENU_SHELL(parent->submenu_id), menu->id, idx);
+#else
 	    gtk_menu_insert(GTK_MENU(parent->submenu_id), menu->id, idx);
+#endif
 
 	    return;
 	}
@@ -553,11 +593,20 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx)
 	/* Add textual menu item. */
 	menu_item_new(menu, parent->submenu_id);
 	gtk_widget_show(menu->id);
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_menu_shell_insert(GTK_MENU_SHELL(parent->submenu_id), menu->id, idx);
+#else
 	gtk_menu_insert(GTK_MENU(parent->submenu_id), menu->id, idx);
+#endif
 
 	if (menu->id != NULL)
+#ifdef GTK_DISABLE_DEPRECATED
+            g_signal_connect(G_OBJECT(menu->id), "activate",
+                             G_CALLBACK(menu_item_activate), menu);
+#else
 	    gtk_signal_connect(GTK_OBJECT(menu->id), "activate",
 			       GTK_SIGNAL_FUNC(menu_item_activate), menu);
+#endif
     }
 }
 #endif /* FEAT_MENU */
@@ -645,9 +694,13 @@ gui_mch_menu_set_tip(vimmenu_T *menu)
 
 	tooltip = CONVERT_TO_UTF8(menu->strings[MENU_INDEX_TIP]);
 	if (tooltip == NULL || utf_valid_string(tooltip, NULL))
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_widget_set_tooltip_text(menu->id, (const gchar *)tooltip);
+#else
 	    /* Only set the tooltip when it's valid utf-8. */
 	gtk_tooltips_set_tip(GTK_TOOLBAR(gui.toolbar)->tooltips,
 			     menu->id, (const char *)tooltip, NULL);
+#endif
 	CONVERT_TO_UTF8_FREE(tooltip);
     }
 }
@@ -676,8 +729,18 @@ gui_mch_destroy_menu(vimmenu_T *menu)
     if (menu->parent != NULL && menu_is_toolbar(menu->parent->name))
     {
 	if (menu_is_separator(menu->name))
+#ifdef GTK_DISABLE_DEPRECATED
+        {
+            GtkToolItem *item;
+
+            item = gtk_toolbar_get_nth_item(GTK_TOOLBAR(gui.toolbar),
+                                            get_menu_position(menu));
+            gtk_container_remove(GTK_CONTAINER(gui.toolbar), GTK_WIDGET(item));
+        }
+#else
 	    gtk_toolbar_remove_space(GTK_TOOLBAR(gui.toolbar),
 				     get_menu_position(menu));
+#endif
 	else if (menu->id != NULL)
 	    gtk_widget_destroy(menu->id);
     }
@@ -810,15 +873,26 @@ gui_mch_create_scrollbar(scrollbar_T *sb, int orient)
     {
 	GtkAdjustment *adjustment;
 
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_widget_set_can_focus(sb->id, FALSE);
+#else
 	GTK_WIDGET_UNSET_FLAGS(sb->id, GTK_CAN_FOCUS);
+#endif
 	gtk_form_put(GTK_FORM(gui.formwin), sb->id, 0, 0);
 
 	adjustment = gtk_range_get_adjustment(GTK_RANGE(sb->id));
 
+#ifdef GTK_DISABLE_DEPRECATED
+	sb->handler_id = g_signal_connect(
+			     G_OBJECT(adjustment), "value-changed",
+			     G_CALLBACK(adjustment_value_changed),
+			     GINT_TO_POINTER(sb->ident));
+#else
 	sb->handler_id = gtk_signal_connect(
 			     GTK_OBJECT(adjustment), "value_changed",
 			     GTK_SIGNAL_FUNC(adjustment_value_changed),
 			     GINT_TO_POINTER(sb->ident));
+#endif
 	gui_mch_update();
     }
 }
@@ -1695,10 +1769,17 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 	if (entry_text != NULL)
 	{
 	    gtk_entry_set_text(GTK_ENTRY(frdp->what), (char *)entry_text);
+#ifdef GTK_DISABLE_DEPRECATED
+	    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(frdp->wword),
+							     (gboolean)wword);
+	    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(frdp->mcase),
+							     (gboolean)mcase);
+#else
 	    gtk_toggle_button_set_state(GTK_TOGGLE_BUTTON(frdp->wword),
 							     (gboolean)wword);
 	    gtk_toggle_button_set_state(GTK_TOGGLE_BUTTON(frdp->mcase),
 							     (gboolean)mcase);
+#endif
 	}
 	gtk_window_present(GTK_WINDOW(frdp->dialog));
 	vim_free(entry_text);
@@ -1706,7 +1787,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     }
 
     frdp->dialog = gtk_dialog_new();
+#ifdef GTK_DISABLE_DEPRECATED
+    /* Nothing equivalent to gtk_dialog_set_has_separator() in GTK+ 3. */
+#else
     gtk_dialog_set_has_separator(GTK_DIALOG(frdp->dialog), FALSE);
+#endif
     gtk_window_set_transient_for(GTK_WINDOW(frdp->dialog), GTK_WINDOW(gui.mainwin));
     gtk_window_set_destroy_with_parent(GTK_WINDOW(frdp->dialog), TRUE);
 
@@ -1730,7 +1815,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     else
 	table = gtk_table_new(1024, 3, FALSE);
     gtk_box_pack_start(GTK_BOX(hbox), table, TRUE, TRUE, 0);
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_container_set_border_width(GTK_CONTAINER(table), 4);
+#else
     gtk_container_border_width(GTK_CONTAINER(table), 4);
+#endif
 
     tmp = gtk_label_new(CONV(_("Find what:")));
     gtk_misc_set_alignment(GTK_MISC(tmp), (gfloat)0.0, (gfloat)0.5);
@@ -1740,11 +1829,19 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     sensitive = (entry_text != NULL && entry_text[0] != NUL);
     if (entry_text != NULL)
 	gtk_entry_set_text(GTK_ENTRY(frdp->what), (char *)entry_text);
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(frdp->what), "changed",
+                     G_CALLBACK(entry_changed_cb), frdp->dialog);
+    g_signal_connect_after(G_OBJECT(frdp->what), "key-press-event",
+				 G_CALLBACK(find_key_press_event),
+				 (gpointer) frdp);
+#else
     gtk_signal_connect(GTK_OBJECT(frdp->what), "changed",
 		       GTK_SIGNAL_FUNC(entry_changed_cb), frdp->dialog);
     gtk_signal_connect_after(GTK_OBJECT(frdp->what), "key_press_event",
 				 GTK_SIGNAL_FUNC(find_key_press_event),
 				 (gpointer) frdp);
+#endif
     gtk_table_attach(GTK_TABLE(table), frdp->what, 1, 1024, 0, 1,
 		     GTK_EXPAND | GTK_FILL, GTK_EXPAND, 2, 2);
 
@@ -1755,12 +1852,21 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 	gtk_table_attach(GTK_TABLE(table), tmp, 0, 1, 1, 2,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
 	frdp->with = gtk_entry_new();
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(frdp->with), "activate",
+                         G_CALLBACK(find_replace_cb),
+                         GINT_TO_POINTER(FRD_R_FINDNEXT));
+	g_signal_connect_after(G_OBJECT(frdp->with), "key-press-event",
+                               G_CALLBACK(find_key_press_event),
+                               (gpointer) frdp);
+#else
 	gtk_signal_connect(GTK_OBJECT(frdp->with), "activate",
 			   GTK_SIGNAL_FUNC(find_replace_cb),
 			   GINT_TO_POINTER(FRD_R_FINDNEXT));
 	gtk_signal_connect_after(GTK_OBJECT(frdp->with), "key_press_event",
 				 GTK_SIGNAL_FUNC(find_key_press_event),
 				 (gpointer) frdp);
+#endif
 	gtk_table_attach(GTK_TABLE(table), frdp->with, 1, 1024, 1, 2,
 			 GTK_EXPAND | GTK_FILL, GTK_EXPAND, 2, 2);
 
@@ -1768,23 +1874,39 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 	 * Make the entry activation only change the input focus onto the
 	 * with item.
 	 */
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(frdp->what), "activate",
+                         G_CALLBACK(entry_activate_cb), frdp->with);
+#else
 	gtk_signal_connect(GTK_OBJECT(frdp->what), "activate",
 			   GTK_SIGNAL_FUNC(entry_activate_cb), frdp->with);
+#endif
     }
     else
     {
 	/*
 	 * Make the entry activation do the search.
 	 */
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(frdp->what), "activate",
+                         G_CALLBACK(find_replace_cb),
+                         GINT_TO_POINTER(FRD_FINDNEXT));
+#else
 	gtk_signal_connect(GTK_OBJECT(frdp->what), "activate",
 			   GTK_SIGNAL_FUNC(find_replace_cb),
 			   GINT_TO_POINTER(FRD_FINDNEXT));
+#endif
     }
 
     /* whole word only button */
     frdp->wword = gtk_check_button_new_with_label(CONV(_("Match whole word only")));
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(frdp->wword),
+							(gboolean)wword);
+#else
     gtk_toggle_button_set_state(GTK_TOGGLE_BUTTON(frdp->wword),
 							(gboolean)wword);
+#endif
     if (do_replace)
 	gtk_table_attach(GTK_TABLE(table), frdp->wword, 0, 1023, 2, 3,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
@@ -1794,8 +1916,13 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 
     /* match case button */
     frdp->mcase = gtk_check_button_new_with_label(CONV(_("Match case")));
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(frdp->mcase),
+							     (gboolean)mcase);
+#else
     gtk_toggle_button_set_state(GTK_TOGGLE_BUTTON(frdp->mcase),
 							     (gboolean)mcase);
+#endif
     if (do_replace)
 	gtk_table_attach(GTK_TABLE(table), frdp->mcase, 0, 1023, 3, 4,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
@@ -1811,34 +1938,63 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 	gtk_table_attach(GTK_TABLE(table), tmp, 1023, 1024, 1, 3,
 			 GTK_FILL, GTK_FILL, 2, 2);
     vbox = gtk_vbox_new(FALSE, 0);
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), 0);
+#else
     gtk_container_border_width(GTK_CONTAINER(vbox), 0);
+#endif
     gtk_container_add(GTK_CONTAINER(tmp), vbox);
 
     /* 'Up' and 'Down' buttons */
     frdp->up = gtk_radio_button_new_with_label(NULL, CONV(_("Up")));
     gtk_box_pack_start(GTK_BOX(vbox), frdp->up, TRUE, TRUE, 0);
+#ifdef GTK_DISABLE_DEPRECATED
+    frdp->down = gtk_radio_button_new_with_label(
+			gtk_radio_button_get_group(GTK_RADIO_BUTTON(frdp->up)),
+			CONV(_("Down")));
+#else
     frdp->down = gtk_radio_button_new_with_label(
 			gtk_radio_button_group(GTK_RADIO_BUTTON(frdp->up)),
 			CONV(_("Down")));
+#endif
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(frdp->down), TRUE);
+#else
     gtk_toggle_button_set_state(GTK_TOGGLE_BUTTON(frdp->down), TRUE);
+#endif
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 2);
     gtk_box_pack_start(GTK_BOX(vbox), frdp->down, TRUE, TRUE, 0);
 
     /* vbox to hold the action buttons */
     actionarea = gtk_vbutton_box_new();
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_container_set_border_width(GTK_CONTAINER(actionarea), 2);
+#else
     gtk_container_border_width(GTK_CONTAINER(actionarea), 2);
+#endif
     gtk_box_pack_end(GTK_BOX(hbox), actionarea, FALSE, FALSE, 0);
 
     /* 'Find Next' button */
     frdp->find = create_image_button(GTK_STOCK_FIND, _("Find Next"));
     gtk_widget_set_sensitive(frdp->find, sensitive);
 
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect(G_OBJECT(frdp->find), "clicked",
+                     G_CALLBACK(find_replace_cb),
+                     (do_replace) ? GINT_TO_POINTER(FRD_R_FINDNEXT)
+				  : GINT_TO_POINTER(FRD_FINDNEXT));
+#else
     gtk_signal_connect(GTK_OBJECT(frdp->find), "clicked",
 		       GTK_SIGNAL_FUNC(find_replace_cb),
 		       (do_replace) ? GINT_TO_POINTER(FRD_R_FINDNEXT)
 				    : GINT_TO_POINTER(FRD_FINDNEXT));
+#endif
 
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_widget_set_can_default(frdp->find, TRUE);
+#else
     GTK_WIDGET_SET_FLAGS(frdp->find, GTK_CAN_DEFAULT);
+#endif
     gtk_box_pack_start(GTK_BOX(actionarea), frdp->find, FALSE, FALSE, 0);
     gtk_widget_grab_default(frdp->find);
 
@@ -1847,32 +2003,65 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 	/* 'Replace' button */
 	frdp->replace = create_image_button(GTK_STOCK_CONVERT, _("Replace"));
 	gtk_widget_set_sensitive(frdp->replace, sensitive);
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_widget_set_can_default(frdp->find, TRUE);
+#else
 	GTK_WIDGET_SET_FLAGS(frdp->replace, GTK_CAN_DEFAULT);
+#endif
 	gtk_box_pack_start(GTK_BOX(actionarea), frdp->replace, FALSE, FALSE, 0);
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(frdp->replace), "clicked",
+                         G_CALLBACK(find_replace_cb),
+                         GINT_TO_POINTER(FRD_REPLACE));
+#else
 	gtk_signal_connect(GTK_OBJECT(frdp->replace), "clicked",
 			   GTK_SIGNAL_FUNC(find_replace_cb),
 			   GINT_TO_POINTER(FRD_REPLACE));
+#endif
 
 	/* 'Replace All' button */
 	frdp->all = create_image_button(GTK_STOCK_CONVERT, _("Replace All"));
 	gtk_widget_set_sensitive(frdp->all, sensitive);
+#ifdef GTK_DISABLE_DEPRECATED
+        gtk_widget_set_can_default(frdp->all, TRUE);
+#else
 	GTK_WIDGET_SET_FLAGS(frdp->all, GTK_CAN_DEFAULT);
+#endif
 	gtk_box_pack_start(GTK_BOX(actionarea), frdp->all, FALSE, FALSE, 0);
+#ifdef GTK_DISABLE_DEPRECATED
+	g_signal_connect(G_OBJECT(frdp->all), "clicked",
+                         G_CALLBACK(find_replace_cb),
+                         GINT_TO_POINTER(FRD_REPLACEALL));
+#else
 	gtk_signal_connect(GTK_OBJECT(frdp->all), "clicked",
 			   GTK_SIGNAL_FUNC(find_replace_cb),
 			   GINT_TO_POINTER(FRD_REPLACEALL));
+#endif
     }
 
     /* 'Cancel' button */
     tmp = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+#ifdef GTK_DISABLE_DEPRECATED
+    gtk_widget_set_can_default(tmp, TRUE);
+#else
     GTK_WIDGET_SET_FLAGS(tmp, GTK_CAN_DEFAULT);
+#endif
     gtk_box_pack_end(GTK_BOX(actionarea), tmp, FALSE, FALSE, 0);
+#ifdef GTK_DISABLE_DEPRECATED
+    g_signal_connect_swapped(G_OBJECT(tmp),
+			      "clicked", G_CALLBACK(gtk_widget_hide),
+			      G_OBJECT(frdp->dialog));
+    g_signal_connect_swapped(G_OBJECT(frdp->dialog),
+			      "delete_event", G_CALLBACK(gtk_widget_hide_on_delete),
+			      G_OBJECT(frdp->dialog));
+#else
     gtk_signal_connect_object(GTK_OBJECT(tmp),
 			      "clicked", GTK_SIGNAL_FUNC(gtk_widget_hide),
 			      GTK_OBJECT(frdp->dialog));
     gtk_signal_connect_object(GTK_OBJECT(frdp->dialog),
 			      "delete_event", GTK_SIGNAL_FUNC(gtk_widget_hide_on_delete),
 			      GTK_OBJECT(frdp->dialog));
+#endif
 
     tmp = gtk_vseparator_new();
     gtk_box_pack_end(GTK_BOX(hbox), tmp, FALSE, FALSE, 10);
