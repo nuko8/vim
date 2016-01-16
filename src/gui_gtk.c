@@ -838,7 +838,12 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 	    /* vertical scrollbar: need to set "dragging" properly in case
 	     * there are closed folds. */
 	    gdk_window_get_pointer(sb->id->window, &x, &y, &state);
+#ifdef GDK_DISABLE_DEPRECATED
+            width = gdk_window_get_width(sb->id->window);
+            height = gdk_window_get_height(sb->id->window);
+#else
 	    gdk_window_get_size(sb->id->window, &width, &height);
+#endif
 	    if (x >= 0 && x < width && y >= 0 && y < height)
 	    {
 		if (y < width)
