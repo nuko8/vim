@@ -580,6 +580,7 @@ gui_mch_free_all()
 }
 #endif
 
+#ifndef GDK_DISABLE_DEPRECATED
 /*
  * This should be maybe completely removed.
  * Doesn't seem possible, since check_copy_area() relies on
@@ -601,6 +602,7 @@ visibility_event(GtkWidget *widget UNUSED,
 			     gui.visibility != GDK_VISIBILITY_UNOBSCURED);
     return FALSE;
 }
+#endif
 
 /*
  * Redraw the corresponding portions of the screen.
@@ -2518,7 +2520,9 @@ create_blank_pointer(void)
     GdkPixmap	*blank_mask;
     GdkCursor	*cursor;
     GdkColor	color = { 0, 0, 0, 0 };
+#ifndef GDK_DISABLE_DEPRECATED
     char	blank_data[] = { 0x0 };
+#endif
 
 #ifdef HAVE_GTK_MULTIHEAD
     root_window = gtk_widget_get_root_window(gui.mainwin);
@@ -2526,10 +2530,29 @@ create_blank_pointer(void)
 
     /* Create a pseudo blank pointer, which is in fact one pixel by one pixel
      * in size. */
+#ifdef GDK_DISABLE_DEPRECATED
+    {
+        cairo_t *cr;
+
+        blank_mask = gdk_pixmap_new(NULL, 1, 1, 1);
+
+        cr = gdk_cairo_create(blank_mask);
+        cairo_rectangle(cr, 0, 0, 1, 1);
+        cairo_fill(cr);
+        cairo_destroy(cr);
+
+        cursor = gdk_cursor_new_from_pixmap(blank_mask, blank_mask,
+                                            &color, &color,
+                                            0, 0);
+
+        g_object_unref(blank_mask);
+    }
+#else
     blank_mask = gdk_bitmap_create_from_data(root_window, blank_data, 1, 1);
     cursor = gdk_cursor_new_from_pixmap(blank_mask, blank_mask,
 					&color, &color, 0, 0);
     gdk_bitmap_unref(blank_mask);
+#endif
 
     return cursor;
 }
@@ -2588,7 +2611,9 @@ drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
     xim_init();
 #endif
     gui_mch_new_colors();
+#ifndef GDK_DISABLE_DEPRECATED
     gui.text_gc = gdk_gc_new(gui.drawarea->window);
+#endif
 
     gui.blank_pointer = create_blank_pointer();
     if (gui.pointer_hidden)
@@ -2640,8 +2665,10 @@ drawarea_unrealize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
     g_object_unref(gui.text_context);
     gui.text_context = NULL;
 
+#ifndef GDK_DISABLE_DEPRECATED
     g_object_unref(gui.text_gc);
     gui.text_gc = NULL;
+#endif
 
     gdk_cursor_unref(gui.blank_pointer);
     gui.blank_pointer = NULL;
@@ -3641,7 +3668,9 @@ gui_mch_init(void)
 			     GTK_SIGNAL_FUNC(&drawarea_style_set_cb), NULL);
 #endif
 
+#ifndef GDK_DISABLE_DEPRECATED
     gui.visibility = GDK_VISIBILITY_UNOBSCURED;
+#endif
 
 #if !(defined(FEAT_GUI_GNOME) && defined(FEAT_SESSION))
     wm_protocols_atom = gdk_atom_intern("WM_PROTOCOLS", FALSE);
@@ -3670,8 +3699,10 @@ gui_mch_init(void)
     gui.border_offset = gui.border_width;
 
 #ifdef GTK_DISABLE_DEPRECATED
+#ifndef GDK_DISABLE_DEPRECATED
     g_signal_connect(G_OBJECT(gui.mainwin), "visibility-notify-event",
                      G_CALLBACK(visibility_event), NULL);
+#endif
     g_signal_connect(G_OBJECT(gui.drawarea), "expose-event",
                      G_CALLBACK(expose_event), NULL);
 #else
@@ -5106,12 +5137,49 @@ setup_zero_width_cluster(PangoItem *item, PangoGlyphInfo *glyph,
 	glyph->geometry.x_offset = -width + MAX(0, width - ink_rect.width) / 2;
 }
 
+#ifdef GDK_DISABLE_DEPRECATED
+    static void
+set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
+{
+    GdkColor result;
+
+    gdk_colormap_query_color(gtk_widget_get_colormap(gui.drawarea),
+                             pixel,
+                             &result);
+    cairo_set_source_rgb(cr,
+                         result.red / 65535.0,
+                         result.green / 65535.0,
+                         result.blue / 65535.0);
+}
+#endif
+
     static void
 draw_glyph_string(int row, int col, int num_cells, int flags,
-		  PangoFont *font, PangoGlyphString *glyphs)
+		  PangoFont *font, PangoGlyphString *glyphs
+#ifdef GDK_DISABLE_DEPRECATED
+                  , const GdkPoint *clip_orig, const GdkRectangle *clip_rect
+#endif
+                  )
 {
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+    cairo_translate(cr, clip_orig->x, clip_orig->y);
+    cairo_rectangle(cr,
+                    clip_rect->x, clip_rect->y,
+                    clip_rect->width, clip_rect->height);
+    cairo_clip(cr);
+#endif
+
     if (!(flags & DRAW_TRANSP))
     {
+#ifdef GDK_DISABLE_DEPRECATED
+        set_cairo_source_rgb_from_pixel(cr, gui.bgcolor->pixel);
+        cairo_set_line_width(cr, 1.0);
+        cairo_rectangle(cr,
+                        FILL_X(col), FILL_Y(row),
+                        num_cells * gui.char_width, gui.char_height);
+        cairo_fill(cr);
+#else
 	gdk_gc_set_foreground(gui.text_gc, gui.bgcolor);
 
 	gdk_draw_rectangle(gui.drawarea->window,
@@ -5121,8 +5189,14 @@ draw_glyph_string(int row, int col, int num_cells, int flags,
 			   FILL_Y(row),
 			   num_cells * gui.char_width,
 			   gui.char_height);
+#endif
     }
 
+#ifdef GDK_DISABLE_DEPRECATED
+    set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
+    cairo_move_to(cr, TEXT_X(col), TEXT_Y(row));
+    pango_cairo_show_glyph_string(cr, font, glyphs);
+#else
     gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
 
     gdk_draw_glyphs(gui.drawarea->window,
@@ -5131,15 +5205,28 @@ draw_glyph_string(int row, int col, int num_cells, int flags,
 		    TEXT_X(col),
 		    TEXT_Y(row),
 		    glyphs);
+#endif
 
     /* redraw the contents with an offset of 1 to emulate bold */
     if ((flags & DRAW_BOLD) && !gui.font_can_bold)
+#ifdef GDK_DISABLE_DEPRECATED
+    {
+        set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
+        cairo_move_to(cr, TEXT_X(col) + 1, TEXT_Y(row));
+        pango_cairo_show_glyph_string(cr, font, glyphs);
+    }
+#else
 	gdk_draw_glyphs(gui.drawarea->window,
 			gui.text_gc,
 			font,
 			TEXT_X(col) + 1,
 			TEXT_Y(row),
 			glyphs);
+#endif
+
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_destroy(cr);
+#endif
 }
 
 /*
@@ -5156,6 +5243,21 @@ draw_under(int flags, int row, int col, int cells)
     /* Undercurl: draw curl at the bottom of the character cell. */
     if (flags & DRAW_UNDERC)
     {
+#ifdef GDK_DISABLE_DEPRECATED
+        cairo_t *cr;
+
+        cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+        cairo_set_line_width(cr, 1.0);
+        set_cairo_source_rgb_from_pixel(cr, gui.spcolor->pixel);
+	for (i = FILL_X(col); i < FILL_X(col + cells); ++i)
+	{
+	    offset = val[i % 8];
+	    cairo_line_to(cr, i + 0.5, y - offset + 0.5);
+	}
+        cairo_stroke(cr);
+
+        cairo_destroy(cr);
+#else
 	gdk_gc_set_foreground(gui.text_gc, gui.spcolor);
 	for (i = FILL_X(col); i < FILL_X(col + cells); ++i)
 	{
@@ -5163,6 +5265,7 @@ draw_under(int flags, int row, int col, int cells)
 	    gdk_draw_point(gui.drawarea->window, gui.text_gc, i, y - offset);
 	}
 	gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
+#endif
     }
 
     /* Underline: draw a line at the bottom of the character cell. */
@@ -5172,9 +5275,23 @@ draw_under(int flags, int row, int col, int cells)
 	 * Otherwise put the line just below the character. */
 	if (p_linespace > 1)
 	    y -= p_linespace - 1;
+#ifdef GDK_DISABLE_DEPRECATED
+        {
+            cairo_t *cr;
+
+            cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+            cairo_set_line_width(cr, 1.0);
+            set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
+            cairo_move_to(cr, FILL_X(col) + 0.5, y + 0.5);
+            cairo_line_to(cr, FILL_X(col + cells) - 0.5, y + 0.5);
+            cairo_stroke(cr);
+            cairo_destroy(cr);
+        }
+#else
 	gdk_draw_line(gui.drawarea->window, gui.text_gc,
 		      FILL_X(col), y,
 		      FILL_X(col + cells) - 1, y);
+#endif
     }
 }
 
@@ -5182,6 +5299,9 @@ draw_under(int flags, int row, int col, int cells)
 gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
 {
     GdkRectangle	area;		    /* area for clip mask	  */
+#ifdef GDK_DISABLE_DEPRECATED
+    GdkPoint            orig;               /* origin of clip mask        */
+#endif
     PangoGlyphString	*glyphs;	    /* glyphs of current item	  */
     int			column_offset = 0;  /* column offset in cells	  */
     int			i;
@@ -5244,8 +5364,13 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
     area.width	= gui.num_cols * gui.char_width;
     area.height = gui.char_height;
 
+#ifdef GDK_DISABLE_DEPRECATED
+    orig.x = 0;
+    orig.y = 0;
+#else
     gdk_gc_set_clip_origin(gui.text_gc, 0, 0);
     gdk_gc_set_clip_rectangle(gui.text_gc, &area);
+#endif
 
     glyphs = pango_glyph_string_new();
 
@@ -5272,7 +5397,12 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
 	    glyphs->log_clusters[i] = i;
 	}
 
+#ifdef GDK_DISABLE_DEPRECATED
+	draw_glyph_string(row, col, len, flags, gui.ascii_font, glyphs,
+                          &orig, &area);
+#else
 	draw_glyph_string(row, col, len, flags, gui.ascii_font, glyphs);
+#endif
 
 	column_offset = len;
     }
@@ -5430,8 +5560,14 @@ not_ascii:
 	    }
 
 	    /*** Aaaaand action! ***/
+#ifdef GDK_DISABLE_DEPRECATED
+	    draw_glyph_string(row, col + column_offset, item_cells,
+			      flags, item->analysis.font, glyphs,
+                              &orig, &area);
+#else
 	    draw_glyph_string(row, col + column_offset, item_cells,
 			      flags, item->analysis.font, glyphs);
+#endif
 
 	    pango_item_free(item);
 
@@ -5448,7 +5584,9 @@ skipitall:
     pango_glyph_string_free(glyphs);
     vim_free(conv_buf);
 
+#ifndef GDK_DISABLE_DEPRECATED
     gdk_gc_set_clip_rectangle(gui.text_gc, NULL);
+#endif
 
     return column_offset;
 }
@@ -5526,12 +5664,65 @@ gui_mch_beep(void)
     void
 gui_mch_flash(int msec)
 {
+#ifdef GDK_DISABLE_DEPRECATED
+    GdkWindow *drawarea;
+    cairo_t *cr;
+    gint width, height;
+    cairo_surface_t *bg_surf;
+    cairo_surface_t *fg_surf;
+    cairo_t *bg_cr;
+    cairo_t *fg_cr;
+#else
     GdkGCValues	values;
     GdkGC	*invert_gc;
+#endif
 
     if (gui.drawarea->window == NULL)
 	return;
 
+#ifdef GDK_DISABLE_DEPRECATED
+    drawarea = gtk_widget_get_window(gui.drawarea);
+
+    cr = gdk_cairo_create(drawarea);
+    width = gdk_window_get_width(drawarea);
+    height = gdk_window_get_height(drawarea);
+
+    bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
+                                           CAIRO_CONTENT_COLOR,
+                                           width, height);
+    fg_surf = cairo_surface_create_similar(cairo_get_target(cr),
+                                           CAIRO_CONTENT_COLOR,
+                                           width, height);
+
+    bg_cr = cairo_create(bg_surf);
+    set_cairo_source_rgb_from_pixel(bg_cr, gui.norm_pixel ^ gui.back_pixel);
+    cairo_rectangle(
+        bg_cr,
+        0,
+        0,
+        FILL_X((int)Columns) + gui.border_offset,
+        FILL_Y((int)Rows) + gui.border_offset
+    );
+    cairo_fill(bg_cr);
+
+    fg_cr = cairo_create(fg_surf);
+    set_cairo_source_rgb_from_pixel(fg_cr, gui.norm_pixel ^ gui.back_pixel);
+    cairo_rectangle(
+        fg_cr,
+        0,
+        0,
+        FILL_X((int)Columns) + gui.border_offset,
+        FILL_Y((int)Rows) + gui.border_offset
+    );
+    cairo_fill(fg_cr);
+
+    cairo_set_operator(fg_cr, CAIRO_OPERATOR_XOR);
+    cairo_set_source_surface(fg_cr, bg_surf, 0.0, 0.0);
+    cairo_paint(fg_cr);
+
+    cairo_set_source_surface(cr, fg_surf, 0.0, 0.0);
+    cairo_paint(cr);
+#else
     values.foreground.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.background.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.function = GDK_XOR;
@@ -5554,10 +5745,21 @@ gui_mch_flash(int msec)
 		       0, 0,
 		       FILL_X((int)Columns) + gui.border_offset,
 		       FILL_Y((int)Rows) + gui.border_offset);
+#endif
 
     gui_mch_flush();
     ui_delay((long)msec, TRUE);	/* wait so many msec */
 
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_set_source_surface(cr, fg_surf, 0.0, 0.0);
+    cairo_paint(cr);
+
+    cairo_destroy(fg_cr);
+    cairo_destroy(bg_cr);
+    cairo_surface_destroy(fg_surf);
+    cairo_surface_destroy(bg_surf);
+    cairo_destroy(cr);
+#else
     gdk_draw_rectangle(gui.drawarea->window, invert_gc,
 		       TRUE,
 		       0, 0,
@@ -5565,6 +5767,7 @@ gui_mch_flash(int msec)
 		       FILL_Y((int)Rows) + gui.border_offset);
 
     gdk_gc_destroy(invert_gc);
+#endif
 }
 
 /*
@@ -5573,12 +5776,71 @@ gui_mch_flash(int msec)
     void
 gui_mch_invert_rectangle(int r, int c, int nr, int nc)
 {
+#ifdef GDK_DISABLE_DEPRECATED
+    GdkWindow *drawarea;
+    cairo_t *cr;
+    gint width, height;
+    cairo_surface_t *bg_surf;
+    cairo_surface_t *fg_surf;
+    cairo_t *bg_cr;
+    cairo_t *fg_cr;
+#else
     GdkGCValues values;
     GdkGC *invert_gc;
+#endif
 
     if (gui.drawarea->window == NULL)
 	return;
 
+#ifdef GDK_DISABLE_DEPRECATED
+    drawarea = gtk_widget_get_window(gui.drawarea);
+
+    cr = gdk_cairo_create(drawarea);
+    width = gdk_window_get_width(drawarea);
+    height = gdk_window_get_height(drawarea);
+
+    bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
+                                           CAIRO_CONTENT_COLOR,
+                                           width, height);
+    fg_surf = cairo_surface_create_similar(cairo_get_target(cr),
+                                           CAIRO_CONTENT_COLOR,
+                                           width, height);
+
+    bg_cr = cairo_create(bg_surf);
+    set_cairo_source_rgb_from_pixel(bg_cr, gui.norm_pixel ^ gui.back_pixel);
+    cairo_rectangle(
+        bg_cr,
+        FILL_X(c),
+        FILL_Y(r),
+        (nc) * gui.char_width,
+        (nr) * gui.char_height
+    );
+    cairo_fill(bg_cr);
+
+    fg_cr = cairo_create(bg_surf);
+    set_cairo_source_rgb_from_pixel(fg_cr, gui.norm_pixel ^ gui.back_pixel);
+    cairo_rectangle(
+        fg_cr,
+        FILL_X(c),
+        FILL_Y(r),
+        (nc) * gui.char_width,
+        (nr) * gui.char_height
+    );
+    cairo_fill(fg_cr);
+
+    cairo_set_operator(fg_cr, CAIRO_OPERATOR_XOR);
+    cairo_set_source_surface(fg_cr, bg_surf, 0.0, 0.0);
+    cairo_paint(fg_cr);
+
+    cairo_set_source_surface(cr, fg_surf, 0.0, 0.0);
+    cairo_paint(cr);
+
+    cairo_destroy(fg_cr);
+    cairo_destroy(bg_cr);
+    cairo_surface_destroy(bg_surf);
+    cairo_surface_destroy(fg_surf);
+    cairo_destroy(cr);
+#else
     values.foreground.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.background.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.function = GDK_XOR;
@@ -5594,6 +5856,7 @@ gui_mch_invert_rectangle(int r, int c, int nr, int nc)
 		       FILL_X(c), FILL_Y(r),
 		       (nc) * gui.char_width, (nr) * gui.char_height);
     gdk_gc_destroy(invert_gc);
+#endif
 }
 
 /*
@@ -5623,19 +5886,39 @@ gui_mch_set_foreground(void)
 gui_mch_draw_hollow_cursor(guicolor_T color)
 {
     int		i = 1;
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_t    *cr;
+#endif
 
     if (gui.drawarea->window == NULL)
 	return;
 
+#ifdef GDK_DISABLE_DEPRECATED
+    cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+#endif
+
     gui_mch_set_fg_color(color);
 
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_set_line_width(cr, 1.0);
+    set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
+#else
     gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
+#endif
     if (mb_lefthalve(gui.row, gui.col))
 	i = 2;
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_rectangle(cr,
+                    FILL_X(gui.col) + 0.5, FILL_Y(gui.row) + 0.5,
+                    i * gui.char_width - 1 + 0.5, gui.char_height - 1 + 0.5);
+    cairo_stroke(cr);
+    cairo_destroy(cr);
+#else
     gdk_draw_rectangle(gui.drawarea->window, gui.text_gc,
 	    FALSE,
 	    FILL_X(gui.col), FILL_Y(gui.row),
 	    i * gui.char_width - 1, gui.char_height - 1);
+#endif
 }
 
 /*
@@ -5650,6 +5933,24 @@ gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
 
     gui_mch_set_fg_color(color);
 
+#ifdef GDK_DISABLE_DEPRECATED
+    {
+        cairo_t *cr;
+
+        cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+        cairo_set_line_width(cr, 1.0);
+        set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
+        cairo_rectangle(cr,
+#ifdef FEAT_RIGHTLEFT
+	    /* vertical line should be on the right of current point */
+	    CURSOR_BAR_RIGHT ? FILL_X(gui.col + 1) - w :
+#endif
+	    FILL_X(gui.col), FILL_Y(gui.row) + gui.char_height - h,
+	    w, h);
+        cairo_fill(cr);
+        cairo_destroy(cr);
+    }
+#else
     gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
     gdk_draw_rectangle(gui.drawarea->window, gui.text_gc,
 	    TRUE,
@@ -5660,6 +5961,7 @@ gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
 	    FILL_X(gui.col),
 	    FILL_Y(gui.row) + gui.char_height - h,
 	    w, h);
+#endif
 }
 
 
@@ -5844,6 +6146,21 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 
     color.pixel = gui.back_pixel;
 
+#ifdef GDK_DISABLE_DEPRECATED
+    {
+        cairo_t *cr;
+
+        cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+        cairo_set_line_width(cr, 1.0);
+        set_cairo_source_rgb_from_pixel(cr, color.pixel);
+        cairo_rectangle(cr,
+                        FILL_X(col1), FILL_Y(row1),
+                        (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
+                        (row2 - row1 + 1) * gui.char_height);
+        cairo_fill(cr);
+        cairo_destroy(cr);
+    }
+#else
     gdk_gc_set_foreground(gui.text_gc, &color);
 
     /* Clear one extra pixel at the far right, for when bold characters have
@@ -5853,6 +6170,7 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 		       (col2 - col1 + 1) * gui.char_width
 						      + (col2 == Columns - 1),
 		       (row2 - row1 + 1) * gui.char_height);
+#endif
 }
 
     void
@@ -5862,6 +6180,7 @@ gui_mch_clear_all(void)
 	gdk_window_clear(gui.drawarea->window);
 }
 
+#ifndef GDK_DISABLE_DEPRECATED
 /*
  * Redraw any text revealed by scrolling up/down.
  */
@@ -5898,6 +6217,54 @@ check_copy_area(void)
 
     gui_can_update_cursor();
 }
+#endif
+
+#ifdef GDK_DISABLE_DEPRECATED
+    static void
+gui_gtk_shift_lines(int row, int num_lines, int from, int to)
+{
+    const int y_src  = FILL_Y(from);
+    const int y_dest = FILL_Y(to);
+
+    const int left   = gui.scroll_region_left;
+    const int right  = gui.scroll_region_right;
+    const int bot    = gui.scroll_region_bot;
+    const int x      = FILL_X(left);
+    const int width  = gui.char_width * (right - left + 1) + 1;
+    const int height = gui.char_height * (bot - row - num_lines + 1);
+
+    cairo_t * const cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+
+    cairo_surface_t * const aux_surf =
+        cairo_surface_create_similar(
+            cairo_get_target(cr),
+            cairo_surface_get_content(cairo_get_target(cr)),
+            width,
+            height
+        );
+    cairo_t * const aux_cr = cairo_create(aux_surf);
+
+    cairo_set_source_surface(aux_cr, cairo_get_target(cr), x, y_src);
+    cairo_paint(aux_cr);
+
+    cairo_set_source_surface(cr, aux_surf, x, y_dest);
+    cairo_paint(cr);
+
+    cairo_destroy(aux_cr);
+    cairo_surface_destroy(aux_surf);
+
+    cairo_destroy(cr);
+
+    if (from > to)
+        gui_clear_block(bot - num_lines + 1, left, bot, right);
+    else
+        gui_clear_block(row, left, row + num_lines - 1, right);
+
+    gui_dont_update_cursor();
+    gui_redraw(x, y_dest, width, height);
+    gui_can_update_cursor();
+}
+#endif
 
 /*
  * Delete the given number of lines from the given row, scrolling up any
@@ -5906,6 +6273,9 @@ check_copy_area(void)
     void
 gui_mch_delete_lines(int row, int num_lines)
 {
+#ifdef GDK_DISABLE_DEPRECATED
+    gui_gtk_shift_lines(row, num_lines, row + num_lines, row);
+#else
     if (gui.visibility == GDK_VISIBILITY_FULLY_OBSCURED)
 	return;			/* Can't see the window */
 
@@ -5926,6 +6296,7 @@ gui_mch_delete_lines(int row, int num_lines)
 						       gui.scroll_region_left,
 		    gui.scroll_region_bot, gui.scroll_region_right);
     check_copy_area();
+#endif
 }
 
 /*
@@ -5935,6 +6306,9 @@ gui_mch_delete_lines(int row, int num_lines)
     void
 gui_mch_insert_lines(int row, int num_lines)
 {
+#ifdef GDK_DISABLE_DEPRECATED
+    gui_gtk_shift_lines(row, num_lines, row, row + num_lines);
+#else
     if (gui.visibility == GDK_VISIBILITY_FULLY_OBSCURED)
 	return;			/* Can't see the window */
 
@@ -5953,6 +6327,7 @@ gui_mch_insert_lines(int row, int num_lines)
     gui_clear_block(row, gui.scroll_region_left,
 				row + num_lines - 1, gui.scroll_region_right);
     check_copy_area();
+#endif
 }
 
 /*
@@ -6245,7 +6620,11 @@ mch_set_mouse_shape(int shape)
 	c = gdk_cursor_new((GdkCursorType)id);
 # endif
 	gdk_window_set_cursor(gui.drawarea->window, c);
+#ifdef GDK_DISABLE_DEPRECATED
+        gdk_cursor_unref(c);
+#else
 	gdk_cursor_destroy(c); /* Unref, actually.  Bloody GTK+ 1. */
+#endif
     }
     if (shape != MSHAPE_HIDE)
 	last_shape = shape;
@@ -6336,6 +6715,44 @@ gui_mch_drawsign(int row, int col, int typenr)
 	xoffset = (width  - SIGN_WIDTH)  / 2;
 	yoffset = (height - SIGN_HEIGHT) / 2;
 
+#ifdef GDK_DISABLE_DEPRECATED
+        {
+            cairo_t         *cr;
+            cairo_surface_t *bg_surf;
+            cairo_t         *bg_cr;
+            cairo_surface_t *sign_surf;
+            cairo_t         *sign_cr;
+
+            cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+
+            bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
+                                                   CAIRO_CONTENT_COLOR,
+                                                   SIGN_WIDTH, SIGN_HEIGHT);
+            bg_cr = cairo_create(bg_surf);
+            set_cairo_source_rgb_from_pixel(bg_cr, gui.bgcolor->pixel);
+            cairo_paint(bg_cr);
+
+            sign_surf = cairo_surface_create_similar(cairo_get_target(cr),
+                                                     CAIRO_CONTENT_COLOR,
+                                                     SIGN_WIDTH, SIGN_HEIGHT);
+            sign_cr = cairo_create(sign_surf);
+            gdk_cairo_set_source_pixbuf(sign_cr, sign, -xoffset, -yoffset);
+            cairo_paint(sign_cr);
+
+            cairo_set_operator(sign_cr, CAIRO_OPERATOR_DEST_OVER);
+            cairo_set_source_surface(sign_cr, bg_surf, 0, 0);
+            cairo_paint(sign_cr);
+
+            cairo_set_source_surface(cr, sign_surf, FILL_X(col), FILL_Y(row));
+            cairo_paint(cr);
+
+            cairo_destroy(sign_cr);
+            cairo_surface_destroy(sign_surf);
+            cairo_destroy(bg_cr);
+            cairo_surface_destroy(bg_surf);
+            cairo_destroy(cr);
+        }
+#else
 	gdk_gc_set_foreground(gui.text_gc, gui.bgcolor);
 
 	gdk_draw_rectangle(gui.drawarea->window,
@@ -6358,6 +6775,7 @@ gui_mch_drawsign(int row, int col, int typenr)
 					    127,
 					    GDK_RGB_DITHER_NORMAL,
 					    0, 0);
+#endif
 	if (need_scale)
 	    g_object_unref(sign);
     }
