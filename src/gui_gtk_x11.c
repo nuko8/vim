@@ -622,14 +622,32 @@ expose_event(GtkWidget *widget UNUSED,
 
     /* Clear the border areas if needed */
     if (event->area.x < FILL_X(0))
+#ifdef GSEAL_ENABLE
+	gdk_window_clear_area(gtk_widget_get_window(gui.drawarea), 0, 0, FILL_X(0), 0);
+#else
 	gdk_window_clear_area(gui.drawarea->window, 0, 0, FILL_X(0), 0);
+#endif
     if (event->area.y < FILL_Y(0))
+#ifdef GSEAL_ENABLE
+	gdk_window_clear_area(gtk_widget_get_window(gui.drawarea), 0, 0, 0, FILL_Y(0));
+#else
 	gdk_window_clear_area(gui.drawarea->window, 0, 0, 0, FILL_Y(0));
+#endif
     if (event->area.x > FILL_X(Columns))
+#ifdef GSEAL_ENABLE
+	gdk_window_clear_area(gtk_widget_get_window(gui.drawarea),
+			      FILL_X((int)Columns), 0, 0, 0);
+#else
 	gdk_window_clear_area(gui.drawarea->window,
 			      FILL_X((int)Columns), 0, 0, 0);
+#endif
     if (event->area.y > FILL_Y(Rows))
+#ifdef GSEAL_ENABLE
+	gdk_window_clear_area(gtk_widget_get_window(gui.drawarea),
+                              0, FILL_Y((int)Rows), 0, 0);
+#else
 	gdk_window_clear_area(gui.drawarea->window, 0, FILL_Y((int)Rows), 0, 0);
+#endif
 
     return FALSE;
 }
@@ -655,7 +673,11 @@ property_event(GtkWidget *widget,
 	xev.xproperty.atom = commProperty;
 	xev.xproperty.window = commWindow;
 	xev.xproperty.state = PropertyNewValue;
+#ifdef GSEAL_ENABLE
+	serverEventProc(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(widget)), &xev, 0);
+#else
 	serverEventProc(GDK_WINDOW_XDISPLAY(widget->window), &xev, 0);
+#endif
     }
     return FALSE;
 }
@@ -1212,13 +1234,22 @@ selection_received_cb(GtkWidget		*widget UNUSED,
     int		    len;
     int		    motion_type = MAUTO;
 
+#ifdef GSEAL_ENABLE
+    if (gtk_selection_data_get_selection(data) == clip_plus.gtk_sel_atom)
+#else
     if (data->selection == clip_plus.gtk_sel_atom)
+#endif
 	cbd = &clip_plus;
     else
 	cbd = &clip_star;
 
+#ifdef GSEAL_ENABLE
+    text = (char_u *)gtk_selection_data_get_data(data);
+    len = gtk_selection_data_get_length(data);
+#else
     text = (char_u *)data->data;
     len  = data->length;
+#endif
 
     if (text == NULL || len <= 0)
     {
@@ -1228,13 +1259,20 @@ selection_received_cb(GtkWidget		*widget UNUSED,
 	return;
     }
 
+#ifdef GSEAL_ENABLE
+    if (gtk_selection_data_get_data_type(data) == vim_atom)
+#else
     if (data->type == vim_atom)
+#endif
     {
 	motion_type = *text++;
 	--len;
     }
-
+#ifdef GSEAL_ENABLE
+    else if (gtk_selection_data_get_data_type(data) == vimenc_atom)
+#else
     else if (data->type == vimenc_atom)
+#endif
     {
 	char_u		*enc;
 	vimconv_T	conv;
@@ -1325,7 +1363,11 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
     GdkAtom	    type;
     VimClipboard    *cbd;
 
+#ifdef GSEAL_ENABLE
+    if (gtk_selection_data_get_selection(selection_data) == clip_plus.gtk_sel_atom)
+#else
     if (selection_data->selection == clip_plus.gtk_sel_atom)
+#endif
 	cbd = &clip_plus;
     else
 	cbd = &clip_star;
@@ -1394,8 +1436,12 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 	    string = tmpbuf;
 	    length += 2;
 
+#ifndef GSEAL_ENABLE
+            /* Looks redandunt even for GTK2 because these values are
+             * overwritten by gtk_selection_data_set() that follows. */
 	    selection_data->type = selection_data->target;
 	    selection_data->format = 16;	/* 16 bits per char */
+#endif
 	    gtk_selection_data_set(selection_data, html_atom, 16,
 							      string, length);
 	    vim_free(string);
@@ -1444,9 +1490,12 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 
     if (string != NULL)
     {
+#ifndef GSEAL_ENABLE
+        /* Looks redandunt even for GTK2 because these values are
+         * overwritten by gtk_selection_data_set() that follows. */
 	selection_data->type = selection_data->target;
 	selection_data->format = 8;	/* 8 bits per char */
-
+#endif
 	gtk_selection_data_set(selection_data, type, 8, string, length);
 	vim_free(string);
     }
@@ -1553,6 +1602,9 @@ process_motion_notify(int x, int y, GdkModifierType state)
 {
     int	    button;
     int_u   vim_modifiers;
+#ifdef GSEAL_ENABLE
+    GtkAllocation allocation;
+#endif
 
     button = (state & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK |
 		       GDK_BUTTON3_MASK | GDK_BUTTON4_MASK |
@@ -1579,9 +1631,17 @@ process_motion_notify(int x, int y, GdkModifierType state)
     /*
      * Auto repeat timer handling.
      */
+#ifdef GSEAL_ENABLE
+    gtk_widget_get_allocation(gui.drawarea, &allocation);
+
+    if (x < 0 || y < 0
+	    || x >= allocation.width
+	    || y >= allocation.height)
+#else
     if (x < 0 || y < 0
 	    || x >= gui.drawarea->allocation.width
 	    || y >= gui.drawarea->allocation.height)
+#endif
     {
 
 	int dx;
@@ -1592,8 +1652,13 @@ process_motion_notify(int x, int y, GdkModifierType state)
 	/* Calculate the maximal distance of the cursor from the drawing area.
 	 * (offshoot can't become negative here!).
 	 */
+#ifdef GSEAL_ENABLE
+	dx = x < 0 ? -x : x - allocation.width;
+	dy = y < 0 ? -y : y - allocation.height;
+#else
 	dx = x < 0 ? -x : x - gui.drawarea->allocation.width;
 	dy = y < 0 ? -y : y - gui.drawarea->allocation.height;
+#endif
 
 	offshoot = dx > dy ? dx : dy;
 
@@ -1642,7 +1707,11 @@ motion_repeat_timer_cb(gpointer data UNUSED)
     int		    y;
     GdkModifierType state;
 
+#ifdef GSEAL_ENABLE
+    gdk_window_get_pointer(gtk_widget_get_window(gui.drawarea), &x, &y, &state);
+#else
     gdk_window_get_pointer(gui.drawarea->window, &x, &y, &state);
+#endif
 
     if (!(state & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK |
 		   GDK_BUTTON3_MASK | GDK_BUTTON4_MASK |
@@ -1687,7 +1756,11 @@ motion_notify_event(GtkWidget *widget,
 	int		y;
 	GdkModifierType	state;
 
+#ifdef GSEAL_ENABLE
+	gdk_window_get_pointer(gtk_widget_get_window(widget), &x, &y, &state);
+#else
 	gdk_window_get_pointer(widget->window, &x, &y, &state);
+#endif
 	process_motion_notify(x, y, state);
     }
     else
@@ -1967,7 +2040,13 @@ drag_handle_uri_list(GdkDragContext	*context,
     char_u  **fnames;
     int	    nfiles = 0;
 
+#ifdef GSEAL_ENABLE
+    fnames = parse_uri_list(&nfiles,
+                            (char_u *)gtk_selection_data_get_data(data),
+                            gtk_selection_data_get_length(data));
+#else
     fnames = parse_uri_list(&nfiles, data->data, data->length);
+#endif
 
     if (fnames != NULL && nfiles > 0)
     {
@@ -1994,10 +2073,19 @@ drag_handle_text(GdkDragContext	    *context,
     int	    len;
     char_u  *tmpbuf = NULL;
 
+#ifdef GSEAL_ENABLE
+    text = (char_u *)gtk_selection_data_get_data(data);
+    len = gtk_selection_data_get_length(data);
+#else
     text = data->data;
     len  = data->length;
+#endif
 
+#ifdef GSEAL_ENABLE
+    if (gtk_selection_data_get_data_type(data) == utf8_string_atom)
+#else
     if (data->type == utf8_string_atom)
+#endif
     {
 	if (input_conv.vc_type != CONV_NONE)
 	    tmpbuf = string_convert(&input_conv, text, &len);
@@ -2033,10 +2121,17 @@ drag_data_received_cb(GtkWidget		*widget,
     GdkModifierType state;
 
     /* Guard against trash */
+#ifdef GSEAL_ENABLE
+    if (gtk_selection_data_get_data(data) == NULL
+            || gtk_selection_data_get_length(data) <= 0
+            || gtk_selection_data_get_format(data) != 8
+            || gtk_selection_data_get_data(data)[gtk_selection_data_get_length(data)] != '\0')
+#else
     if (data->data == NULL
 	    || data->length <= 0
 	    || data->format != 8
 	    || data->data[data->length] != '\0')
+#endif
     {
 	gtk_drag_finish(context, FALSE, FALSE, time_);
 	return;
@@ -2044,7 +2139,11 @@ drag_data_received_cb(GtkWidget		*widget,
 
     /* Get the current modifier state for proper distinguishment between
      * different operations later. */
+#ifdef GSEAL_ENABLE
+    gdk_window_get_pointer(gtk_widget_get_window(widget), NULL, NULL, &state);
+#else
     gdk_window_get_pointer(widget->window, NULL, NULL, &state);
+#endif
 
     /* Not sure about the role of "text/plain" here... */
     if (info == (guint)TARGET_TEXT_URI_LIST)
@@ -2342,9 +2441,15 @@ setup_save_yourself(void)
 	/* Fall back to old method */
 
 	/* first get the existing value */
+#if GSEAL_ENABLE
+	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+		    GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)),
+		    &existing_atoms, &count))
+#else
 	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 		    GDK_WINDOW_XWINDOW(gui.mainwin->window),
 		    &existing_atoms, &count))
+#endif
 	{
 	    Atom	*new_atoms;
 	    Atom	save_yourself_xatom;
@@ -2366,9 +2471,15 @@ setup_save_yourself(void)
 		{
 		    memcpy(new_atoms, existing_atoms, count * sizeof(Atom));
 		    new_atoms[count] = save_yourself_xatom;
+#ifdef GSEAL_ENABLE
+		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+			    GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)),
+			    new_atoms, count + 1);
+#else
 		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 			    GDK_WINDOW_XWINDOW(gui.mainwin->window),
 			    new_atoms, count + 1);
+#endif
 		    vim_free(new_atoms);
 		}
 	    }
@@ -2412,9 +2523,15 @@ global_event_filter(GdkXEvent *xev,
 	 * know we are done saving ourselves.  We don't want to be
 	 * restarted, thus set argv to NULL.
 	 */
+#ifdef GSEAL_ENABLE
+	XSetCommand(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+		    GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)),
+		    NULL, 0);
+#else
 	XSetCommand(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 		    GDK_WINDOW_XWINDOW(gui.mainwin->window),
 		    NULL, 0);
+#endif
 	return GDK_FILTER_REMOVE;
     }
 
@@ -2450,7 +2567,11 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     /* When started with "--echo-wid" argument, write window ID on stdout. */
     if (echo_wid_arg)
     {
+#ifdef GSEAL_ENABLE
+	printf("WID: %ld\n", (long)GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)));
+#else
 	printf("WID: %ld\n", (long)GDK_WINDOW_XWINDOW(gui.mainwin->window));
+#endif
 	fflush(stdout);
     }
 
@@ -2487,10 +2608,17 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     if (serverName == NULL && serverDelayedStartName != NULL)
     {
 	/* This is a :gui command in a plain vim with no previous server */
+#ifdef GSEAL_ENABLE
+	commWindow = GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin));
+
+	(void)serverRegisterName(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+				 serverDelayedStartName);
+#else
 	commWindow = GDK_WINDOW_XWINDOW(gui.mainwin->window);
 
 	(void)serverRegisterName(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 				 serverDelayedStartName);
+#endif
     }
     else
     {
@@ -2499,8 +2627,13 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 	 * have to change the "server" registration to that of the main window
 	 * If we have not registered a name yet, remember the window
 	 */
+#ifdef GSEAL_ENABLE
+	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+				     GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)));
+#else
 	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 				     GDK_WINDOW_XWINDOW(gui.mainwin->window));
+#endif
     }
     gtk_widget_add_events(gui.mainwin, GDK_PROPERTY_CHANGE_MASK);
 #ifdef GTK_DISABLE_DEPRECATED
@@ -2574,8 +2707,13 @@ mainwin_screen_changed_cb(GtkWidget  *widget,
 
     gui.blank_pointer = create_blank_pointer();
 
+#ifdef GSEAL_ENABLE
+    if (gui.pointer_hidden && gtk_widget_get_window(gui.drawarea) != NULL)
+	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), gui.blank_pointer);
+#else
     if (gui.pointer_hidden && gui.drawarea->window != NULL)
 	gdk_window_set_cursor(gui.drawarea->window, gui.blank_pointer);
+#endif
 
     /*
      * Create a new PangoContext for this screen, and initialize it
@@ -2606,6 +2744,9 @@ mainwin_screen_changed_cb(GtkWidget  *widget,
 drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
 {
     GtkWidget *sbar;
+#ifdef GSEAL_ENABLE
+    GtkAllocation allocation;
+#endif
 
 #ifdef FEAT_XIM
     xim_init();
@@ -2617,7 +2758,11 @@ drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
 
     gui.blank_pointer = create_blank_pointer();
     if (gui.pointer_hidden)
+#ifdef GSEAL_ENABLE
+	gdk_window_set_cursor(gtk_widget_get_window(widget), gui.blank_pointer);
+#else
 	gdk_window_set_cursor(widget->window, gui.blank_pointer);
+#endif
 
     /* get the actual size of the scrollbars, if they are realized */
     sbar = firstwin->w_scrollbars[SBAR_LEFT].id;
@@ -2625,19 +2770,37 @@ drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
 				    && firstwin->w_scrollbars[SBAR_RIGHT].id))
 	sbar = firstwin->w_scrollbars[SBAR_RIGHT].id;
 #ifdef GTK_DISABLE_DEPRECATED
+#ifdef GSEAL_ENABLE
+    gtk_widget_get_allocation(sbar, &allocation);
+
+    if (sbar && gtk_widget_get_realized(sbar) && allocation.width)
+#else
     if (sbar && gtk_widget_get_realized(sbar) && sbar->allocation.width)
+#endif
 #else
     if (sbar && GTK_WIDGET_REALIZED(sbar) && sbar->allocation.width)
 #endif
+#ifdef GSEAL_ENABLE
+	gui.scrollbar_width = allocation.width;
+#else
 	gui.scrollbar_width = sbar->allocation.width;
+#endif
 
     sbar = gui.bottom_sbar.id;
 #ifdef GTK_DISABLE_DEPRECATED
+#ifdef GSEAL_ENABLE
+    if (sbar && gtk_widget_get_realized(sbar) && allocation.height)
+#else
     if (sbar && gtk_widget_get_realized(sbar) && sbar->allocation.height)
+#endif
 #else
     if (sbar && GTK_WIDGET_REALIZED(sbar) && sbar->allocation.height)
 #endif
+#ifdef GSEAL_ENABLE
+	gui.scrollbar_height = allocation.height;
+#else
 	gui.scrollbar_height = sbar->allocation.height;
+#endif
 }
 
 /*
@@ -2733,10 +2896,21 @@ get_item_dimensions(GtkWidget *widget, GtkOrientation orientation)
 	    && GTK_WIDGET_VISIBLE(widget))
 #endif
     {
+#ifdef GSEAL_ENABLE
+        GtkAllocation allocation;
+
+        gtk_widget_get_allocation(widget, &allocation);
+
+	if (orientation == GTK_ORIENTATION_HORIZONTAL)
+	    return allocation.height;
+	else
+	    return allocation.width;
+#else
 	if (orientation == GTK_ORIENTATION_HORIZONTAL)
 	    return widget->allocation.height;
 	else
 	    return widget->allocation.width;
+#endif
     }
     return 0;
 }
@@ -3184,7 +3358,11 @@ gui_mch_update_tabline(void)
 	gtk_object_set_user_data(GTK_OBJECT(event_box),
 						     (gpointer)(long)tab_num);
 #endif
+#ifdef GSEAL_ENABLE
+        label = gtk_bin_get_child(GTK_BIN(event_box));
+#else
 	label = GTK_BIN(event_box)->child;
+#endif
 	get_tabline_label(tp, FALSE);
 	labeltext = CONVERT_TO_UTF8(NameBuff);
 	gtk_label_set_text(GTK_LABEL(label), (const char *)labeltext);
@@ -3380,7 +3558,11 @@ gui_mch_init(void)
 #else
 	plug = gtk_plug_new(gtk_socket_id);
 #endif
+#ifdef GSEAL_ENABLE
+	if (plug != NULL && gtk_plug_get_socket_window(GTK_PLUG(plug)) != NULL)
+#else
 	if (plug != NULL && GTK_PLUG(plug)->socket_window != NULL)
+#endif
 	{
 	    gui.mainwin = plug;
 	}
@@ -3856,12 +4038,20 @@ gui_mch_forked(void)
     void
 gui_mch_new_colors(void)
 {
+#ifdef GSEAL_ENABLE
+    if (gui.drawarea != NULL && gtk_widget_get_window(gui.drawarea) != NULL)
+#else
     if (gui.drawarea != NULL && gui.drawarea->window != NULL)
+#endif
     {
 	GdkColor color = { 0, 0, 0, 0 };
 
 	color.pixel = gui.back_pixel;
+#ifdef GSEAL_ENABLE
+	gdk_window_set_background(gtk_widget_get_window(gui.drawarea), &color);
+#else
 	gdk_window_set_background(gui.drawarea->window, &color);
+#endif
     }
 }
 
@@ -4236,9 +4426,15 @@ force_shell_resize_idle(gpointer data)
     int
 gui_mch_maximized()
 {
+#ifdef GSEAL_ENABLE
+    return (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL
+	    && (gdk_window_get_state(gtk_widget_get_window(gui.mainwin))
+					       & GDK_WINDOW_STATE_MAXIMIZED));
+#else
     return (gui.mainwin != NULL && gui.mainwin->window != NULL
 	    && (gdk_window_get_state(gui.mainwin->window)
 					       & GDK_WINDOW_STATE_MAXIMIZED));
+#endif
 }
 
 /*
@@ -5311,7 +5507,11 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
     char_u		*sp, *bp;
     int			plen;
 
+#ifdef GSEAL_ENABLE
+    if (gui.text_context == NULL || gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.text_context == NULL || gui.drawarea->window == NULL)
+#endif
 	return len;
 
     if (output_conv.vc_type != CONV_NONE)
@@ -5613,10 +5813,19 @@ gui_mch_haskey(char_u *name)
     int
 gui_get_x11_windis(Window *win, Display **dis)
 {
+#ifdef GSEAL_ENABLE
+    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL)
+#else
     if (gui.mainwin != NULL && gui.mainwin->window != NULL)
+#endif
     {
+#ifdef GSEAL_ENABLE
+	*dis = GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin));
+	*win = GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin));
+#else
 	*dis = GDK_WINDOW_XDISPLAY(gui.mainwin->window);
 	*win = GDK_WINDOW_XWINDOW(gui.mainwin->window);
+#endif
 	return OK;
     }
 
@@ -5632,8 +5841,13 @@ gui_get_x11_windis(Window *win, Display **dis)
     Display *
 gui_mch_get_display(void)
 {
+#ifdef GSEAL_ENABLE
+    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL)
+	return GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin));
+#else
     if (gui.mainwin != NULL && gui.mainwin->window != NULL)
 	return GDK_WINDOW_XDISPLAY(gui.mainwin->window);
+#endif
     else
 	return NULL;
 }
@@ -5677,7 +5891,11 @@ gui_mch_flash(int msec)
     GdkGC	*invert_gc;
 #endif
 
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.drawarea->window == NULL)
+#endif
 	return;
 
 #ifdef GDK_DISABLE_DEPRECATED
@@ -5789,7 +6007,11 @@ gui_mch_invert_rectangle(int r, int c, int nr, int nc)
     GdkGC *invert_gc;
 #endif
 
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.drawarea->window == NULL)
+#endif
 	return;
 
 #ifdef GDK_DISABLE_DEPRECATED
@@ -5890,7 +6112,11 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
     cairo_t    *cr;
 #endif
 
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.drawarea->window == NULL)
+#endif
 	return;
 
 #ifdef GDK_DISABLE_DEPRECATED
@@ -5928,7 +6154,11 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
     void
 gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
 {
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.drawarea->window == NULL)
+#endif
 	return;
 
     gui_mch_set_fg_color(color);
@@ -6128,8 +6358,13 @@ gui_mch_flush(void)
 #endif
     /* This happens to actually do what gui_mch_flush() is supposed to do,
      * according to the comment above. */
+#ifdef GSEAL_ENABLE
+    if (gui.drawarea != NULL && gtk_widget_get_window(gui.drawarea) != NULL)
+	gdk_window_process_updates(gtk_widget_get_window(gui.drawarea), FALSE);
+#else
     if (gui.drawarea != NULL && gui.drawarea->window != NULL)
 	gdk_window_process_updates(gui.drawarea->window, FALSE);
+#endif
 }
 
 /*
@@ -6141,7 +6376,11 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 {
     GdkColor color;
 
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.drawarea->window == NULL)
+#endif
 	return;
 
     color.pixel = gui.back_pixel;
@@ -6176,8 +6415,13 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
     void
 gui_mch_clear_all(void)
 {
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) != NULL)
+	gdk_window_clear(gtk_widget_get_window(gui.drawarea));
+#else
     if (gui.drawarea->window != NULL)
 	gdk_window_clear(gui.drawarea->window);
+#endif
 }
 
 #ifndef GDK_DISABLE_DEPRECATED
@@ -6363,7 +6607,11 @@ clip_mch_request_selection(VimClipboard *cbd)
     }
 
     /* Final fallback position - use the X CUT_BUFFER0 store */
+#ifdef GSEAL_ENABLE
+    yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)), cbd);
+#else
     yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gui.mainwin->window), cbd);
+#endif
 }
 
 /*
@@ -6517,7 +6765,11 @@ gui_mch_get_rgb(guicolor_T pixel)
     void
 gui_mch_getmouse(int *x, int *y)
 {
+#ifdef GSEAL_ENABLE
+    gdk_window_get_pointer(gtk_widget_get_window(gui.drawarea), x, y, NULL);
+#else
     gdk_window_get_pointer(gui.drawarea->window, x, y, NULL);
+#endif
 }
 
     void
@@ -6526,9 +6778,15 @@ gui_mch_setmouse(int x, int y)
     /* Sorry for the Xlib call, but we can't avoid it, since there is no
      * internal GDK mechanism present to accomplish this.  (and for good
      * reason...) */
+#ifdef GSEAL_ENABLE
+    XWarpPointer(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.drawarea)),
+		 (Window)0, GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.drawarea)),
+		 0, 0, 0U, 0U, x, y);
+#else
     XWarpPointer(GDK_WINDOW_XDISPLAY(gui.drawarea->window),
 		 (Window)0, GDK_WINDOW_XWINDOW(gui.drawarea->window),
 		 0, 0, 0U, 0U, x, y);
+#endif
 }
 
 
@@ -6549,10 +6807,18 @@ gui_mch_mousehide(int hide)
     if (gui.pointer_hidden != hide)
     {
 	gui.pointer_hidden = hide;
+#ifdef GSEAL_ENABLE
+	if (gtk_widget_get_window(gui.drawarea) && gui.blank_pointer != NULL)
+#else
 	if (gui.drawarea->window && gui.blank_pointer != NULL)
+#endif
 	{
 	    if (hide)
+#ifdef GSEAL_ENABLE
+		gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), gui.blank_pointer);
+#else
 		gdk_window_set_cursor(gui.drawarea->window, gui.blank_pointer);
+#endif
 	    else
 #ifdef FEAT_MOUSESHAPE
 		mch_set_mouse_shape(last_shape);
@@ -6594,11 +6860,19 @@ mch_set_mouse_shape(int shape)
     int		   id;
     GdkCursor	   *c;
 
+#ifdef GSEAL_ENABLE
+    if (gtk_widget_get_window(gui.drawarea) == NULL)
+#else
     if (gui.drawarea->window == NULL)
+#endif
 	return;
 
     if (shape == MSHAPE_HIDE || gui.pointer_hidden)
+#ifdef GSEAL_ENABLE
+	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), gui.blank_pointer);
+#else
 	gdk_window_set_cursor(gui.drawarea->window, gui.blank_pointer);
+#endif
     else
     {
 	if (shape >= MSHAPE_NUMBERED)
@@ -6619,7 +6893,11 @@ mch_set_mouse_shape(int shape)
 # else
 	c = gdk_cursor_new((GdkCursorType)id);
 # endif
+#ifdef GSEAL_ENABLE
+	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), c);
+#else
 	gdk_window_set_cursor(gui.drawarea->window, c);
+#endif
 #ifdef GDK_DISABLE_DEPRECATED
         gdk_cursor_unref(c);
 #else
@@ -6651,7 +6929,12 @@ gui_mch_drawsign(int row, int col, int typenr)
 
     sign = (GdkPixbuf *)sign_get_image(typenr);
 
+#ifdef GSEAL_ENABLE
+    if (sign != NULL && gui.drawarea != NULL &&
+        gtk_widget_get_window(gui.drawarea) != NULL)
+#else
     if (sign != NULL && gui.drawarea != NULL && gui.drawarea->window != NULL)
+#endif
     {
 	int width;
 	int height;

@@ -126,8 +126,10 @@ gtk_form_put(GtkForm	*form,
     child->window = NULL;
     child->x = x;
     child->y = y;
+#ifndef GSEAL_ENABLE
     child->widget->requisition.width = 0;
     child->widget->requisition.height = 0;
+#endif
     child->mapped = FALSE;
 
     form->children = g_list_append(form->children, child);
@@ -294,10 +296,21 @@ gtk_form_realize(GtkWidget *widget)
 #endif
 
     attributes.window_type = GDK_WINDOW_CHILD;
+#ifdef GSEAL_ENABLE
+    {
+        GtkAllocation allocation;
+        gtk_widget_get_allocation(widget, &allocation);
+        attributes.x = allocation.x;
+        attributes.y = allocation.y;
+        attributes.width = allocation.width;
+        attributes.height = allocation.height;
+    }
+#else
     attributes.x = widget->allocation.x;
     attributes.y = widget->allocation.y;
     attributes.width = widget->allocation.width;
     attributes.height = widget->allocation.height;
+#endif
     attributes.wclass = GDK_INPUT_OUTPUT;
     attributes.visual = gtk_widget_get_visual(widget);
     attributes.colormap = gtk_widget_get_colormap(widget);
@@ -305,25 +318,53 @@ gtk_form_realize(GtkWidget *widget)
 
     attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL | GDK_WA_COLORMAP;
 
+#ifdef GSEAL_ENABLE
+    gtk_widget_set_window(widget,
+                          gdk_window_new(gtk_widget_get_parent_window(widget),
+                                         &attributes, attributes_mask));
+    gdk_window_set_user_data(gtk_widget_get_window(widget), widget);
+#else
     widget->window = gdk_window_new(gtk_widget_get_parent_window(widget),
 				    &attributes, attributes_mask);
     gdk_window_set_user_data(widget->window, widget);
+#endif
 
     attributes.x = 0;
     attributes.y = 0;
     attributes.event_mask = gtk_widget_get_events(widget);
 
+#ifdef GSEAL_ENABLE
+    form->bin_window = gdk_window_new(gtk_widget_get_window(widget),
+				      &attributes, attributes_mask);
+#else
     form->bin_window = gdk_window_new(widget->window,
 				      &attributes, attributes_mask);
+#endif
     gdk_window_set_user_data(form->bin_window, widget);
 
     gtk_form_set_static_gravity(form->bin_window, TRUE);
 
+#ifdef GSEAL_ENABLE
+    gtk_widget_set_style(widget,
+                         gtk_style_attach(gtk_widget_get_style(widget),
+                                          gtk_widget_get_window(widget)));
+    gtk_style_set_background(gtk_widget_get_style(widget),
+                             gtk_widget_get_window(widget),
+                             GTK_STATE_NORMAL);
+    gtk_style_set_background(gtk_widget_get_style(widget),
+                             form->bin_window,
+                             GTK_STATE_NORMAL);
+#else
     widget->style = gtk_style_attach(widget->style, widget->window);
     gtk_style_set_background(widget->style, widget->window, GTK_STATE_NORMAL);
     gtk_style_set_background(widget->style, form->bin_window, GTK_STATE_NORMAL);
+#endif
 
+#ifdef GSEAL_ENABLE
+    gdk_window_add_filter(gtk_widget_get_window(widget), gtk_form_main_filter, form);
+#else
     gdk_window_add_filter(widget->window, gtk_form_main_filter, form);
+#endif
     gdk_window_add_filter(form->bin_window, gtk_form_filter, form);
 
     for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
@@ -366,7 +407,11 @@ gtk_form_map(GtkWidget *widget)
     GTK_WIDGET_SET_FLAGS(widget, GTK_MAPPED);
 #endif
 
+#ifdef GSEAL_ENABLE
+    gdk_window_show(gtk_widget_get_window(widget));
+#else
     gdk_window_show(widget->window);
+#endif
     gdk_window_show(form->bin_window);
 
     for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
@@ -469,17 +514,34 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
     GList *tmp_list;
     GtkForm *form;
     gboolean need_reposition;
+#ifdef GSEAL_ENABLE
+    GtkAllocation cur_alloc;
+#endif
 
     g_return_if_fail(GTK_IS_FORM(widget));
 
+#ifdef GSEAL_ENABLE
+    gtk_widget_get_allocation(widget, &cur_alloc);
+
+    if (cur_alloc.x == allocation->x
+	    && cur_alloc.y == allocation->y
+	    && cur_alloc.width == allocation->width
+	    && cur_alloc.height == allocation->height)
+#else
     if (widget->allocation.x == allocation->x
 	    && widget->allocation.y == allocation->y
 	    && widget->allocation.width == allocation->width
 	    && widget->allocation.height == allocation->height)
+#endif
 	return;
 
+#ifdef GSEAL_ENABLE
+    need_reposition = cur_alloc.width != allocation->width
+		   || cur_alloc.height != allocation->height;
+#else
     need_reposition = widget->allocation.width != allocation->width
 		   || widget->allocation.height != allocation->height;
+#endif
     form = GTK_FORM(widget);
 
     if (need_reposition)
@@ -501,14 +563,24 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
     if (GTK_WIDGET_REALIZED(widget))
 #endif
     {
+#ifdef GSEAL_ENABLE
+	gdk_window_move_resize(gtk_widget_get_window(widget),
+			       allocation->x, allocation->y,
+			       allocation->width, allocation->height);
+#else
 	gdk_window_move_resize(widget->window,
 			       allocation->x, allocation->y,
 			       allocation->width, allocation->height);
+#endif
 	gdk_window_move_resize(GTK_FORM(widget)->bin_window,
 			       0, 0,
 			       allocation->width, allocation->height);
     }
+#ifdef GSEAL_ENABLE
+    gtk_widget_set_allocation(widget, allocation);
+#else
     widget->allocation = *allocation;
+#endif
     if (need_reposition)
 	gtk_form_send_configure(form);
 }
@@ -536,8 +608,13 @@ gtk_form_expose(GtkWidget *widget, GdkEventExpose *event)
 	 * which can't be done in gtk2
 	 */
 #ifdef GTK_DISABLE_DEPRECATED
+#ifdef GSEAL_ENABLE
+        if (gtk_widget_is_drawable(child) && !gtk_widget_get_has_window(child)
+		&& gtk_widget_get_window(child) == event->window)
+#else
         if (gtk_widget_is_drawable(child) && !gtk_widget_get_has_window(child)
 		&& child->window == event->window)
+#endif
 #else
 	if (GTK_WIDGET_DRAWABLE(child) && GTK_WIDGET_NO_WINDOW(child)
 		&& child->window == event->window)
@@ -659,8 +736,19 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 	attributes.window_type = GDK_WINDOW_CHILD;
 	attributes.x = child->x;
 	attributes.y = child->y;
+#ifdef GSEAL_ENABLE
+        {
+            GtkRequisition requisition;
+
+            gtk_widget_size_request(child->widget, &requisition);
+
+            attributes.width = requisition.width;
+            attributes.height = requisition.height;
+        }
+#else
 	attributes.width = child->widget->requisition.width;
 	attributes.height = child->widget->requisition.height;
+#endif
 	attributes.wclass = GDK_INPUT_OUTPUT;
 	attributes.visual = gtk_widget_get_visual(widget);
 	attributes.colormap = gtk_widget_get_colormap(widget);
@@ -671,9 +759,15 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 				       &attributes, attributes_mask);
 	gdk_window_set_user_data(child->window, widget);
 
+#ifdef GSEAL_ENABLE
+	gtk_style_set_background(gtk_widget_get_style(widget),
+				 child->window,
+				 GTK_STATE_NORMAL);
+#else
 	gtk_style_set_background(widget->style,
 				 child->window,
 				 GTK_STATE_NORMAL);
+#endif
 
 	gtk_widget_set_parent_window(child->widget, child->window);
 	gtk_form_set_static_gravity(child->window, TRUE);
@@ -710,7 +804,11 @@ gtk_form_realize_child(GtkForm *form, GtkFormChild *child)
     gtk_widget_realize(child->widget);
 
     if (child->window == NULL) /* might be already set, see above */
+#ifdef GSEAL_ENABLE
+	gtk_form_set_static_gravity(gtk_widget_get_window(child->widget), TRUE);
+#else
 	gtk_form_set_static_gravity(child->widget->window, TRUE);
+#endif
 }
 
     static void
@@ -749,6 +847,11 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 	if (force_allocate)
 	{
 	    GtkAllocation allocation;
+#ifdef GSEAL_ENABLE
+            GtkRequisition requisition;
+
+            gtk_widget_size_request(child->widget, &requisition);
+#endif
 
 #ifdef GTK_DISABLE_DEPRECATED
             if (!gtk_widget_get_has_window(child->widget))
@@ -758,10 +861,17 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 	    {
 		if (child->window)
 		{
+#ifdef GSEAL_ENABLE
+		    gdk_window_move_resize(child->window,
+			    x, y,
+			    requisition.width,
+			    requisition.height);
+#else
 		    gdk_window_move_resize(child->window,
 			    x, y,
 			    child->widget->requisition.width,
 			    child->widget->requisition.height);
+#endif
 		}
 
 		allocation.x = 0;
@@ -773,8 +883,13 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 		allocation.y = y;
 	    }
 
+#ifdef GSEAL_ENABLE
+	    allocation.width = requisition.width;
+	    allocation.height = requisition.height;
+#else
 	    allocation.width = child->widget->requisition.width;
 	    allocation.height = child->widget->requisition.height;
+#endif
 
 	    gtk_widget_size_allocate(child->widget, &allocation);
 	}
@@ -894,8 +1009,12 @@ gtk_form_set_static_gravity(GdkWindow *window, gboolean use_static)
 gtk_form_move_resize(GtkForm *form, GtkWidget *widget,
 		     gint x, gint y, gint w, gint h)
 {
+#ifdef GSEAL_ENABLE
+    gtk_widget_set_size_request(widget, w, h);
+#else
     widget->requisition.width  = w;
     widget->requisition.height = h;
+#endif
 
     gtk_form_move(form, widget, x, y);
 }
@@ -909,11 +1028,24 @@ gtk_form_send_configure(GtkForm *form)
     widget = GTK_WIDGET(form);
 
     event.type = GDK_CONFIGURE;
+#ifdef GSEAL_ENABLE
+    event.window = gtk_widget_get_window(widget);
+    {
+        GtkAllocation allocation;
+
+        gtk_widget_get_allocation(widget, &allocation);
+        event.x = allocation.x;
+        event.y = allocation.y;
+        event.width = allocation.width;
+        event.height = allocation.height;
+    }
+#else
     event.window = widget->window;
     event.x = widget->allocation.x;
     event.y = widget->allocation.y;
     event.width = widget->allocation.width;
     event.height = widget->allocation.height;
+#endif
 
     gtk_main_do_event((GdkEvent*)&event);
 }
@@ -939,4 +1071,3 @@ gtk_form_child_unmap(GtkWidget *widget UNUSED, gpointer user_data)
     child->mapped = FALSE;
     gdk_window_hide(child->window);
 }
-
