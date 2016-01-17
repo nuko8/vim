@@ -774,17 +774,26 @@ gui_mch_set_scrollbar_thumb(scrollbar_T *sb, long val, long size, long max)
 
 	adjustment = gtk_range_get_adjustment(GTK_RANGE(sb->id));
 
+#ifdef GSEAL_ENABLE
+        gtk_adjustment_set_lower(adjustment, 0.0);
+        gtk_adjustment_set_value(adjustment, val);
+        gtk_adjustment_set_upper(adjustment, max + 1);
+        gtk_adjustment_set_page_size(adjustment, size);
+        gtk_adjustment_set_page_increment(adjustment, size < 3L ? 1L : size - 2L);
+        gtk_adjustment_set_step_increment(adjustment, 1.0);
+#else
 	adjustment->lower = 0.0;
 	adjustment->value = val;
 	adjustment->upper = max + 1;
 	adjustment->page_size = size;
 	adjustment->page_increment = size < 3L ? 1L : size - 2L;
 	adjustment->step_increment = 1.0;
+#endif
 
-	g_signal_handler_block(GTK_OBJECT(adjustment),
+	g_signal_handler_block(G_OBJECT(adjustment),
 						      (gulong)sb->handler_id);
 	gtk_adjustment_changed(adjustment);
-	g_signal_handler_unblock(GTK_OBJECT(adjustment),
+	g_signal_handler_unblock(G_OBJECT(adjustment),
 						      (gulong)sb->handler_id);
     }
 }
@@ -813,7 +822,11 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 #endif
 
     sb = gui_find_scrollbar((long)data);
+#ifdef GSEAL_ENABLE
+    value = gtk_adjustment_get_value(adjustment);
+#else
     value = (long)adjustment->value;
+#endif
     /*
      * The dragging argument must be right for the scrollbar to work with
      * closed folds.  This isn't documented, hopefully this will keep on
@@ -837,10 +850,19 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 
 	    /* vertical scrollbar: need to set "dragging" properly in case
 	     * there are closed folds. */
+#ifdef GSEAL_ENABLE
+	    gdk_window_get_pointer(gtk_widget_get_window(sb->id), &x, &y, &state);
+#else
 	    gdk_window_get_pointer(sb->id->window, &x, &y, &state);
+#endif
 #ifdef GDK_DISABLE_DEPRECATED
+#ifdef GSEAL_ENABLE
+            width = gdk_window_get_width(gtk_widget_get_window(sb->id));
+            height = gdk_window_get_height(gtk_widget_get_window(sb->id));
+#else
             width = gdk_window_get_width(sb->id->window);
             height = gdk_window_get_height(sb->id->window);
+#endif
 #else
 	    gdk_window_get_size(sb->id->window, &width, &height);
 #endif
@@ -1345,6 +1367,8 @@ dialog_add_buttons(GtkDialog *dialog, char_u *button_string)
     /* Check 'v' flag in 'guioptions': vertical button placement. */
     if (vim_strchr(p_go, GO_VERTICAL) != NULL)
     {
+#ifndef GSEAL_ENABLE
+        /* XXX It doesn't look this code works with GTK+ 3. */
 	GtkWidget	*vbutton_box;
 
 	vbutton_box = gtk_vbutton_box_new();
@@ -1353,6 +1377,7 @@ dialog_add_buttons(GtkDialog *dialog, char_u *button_string)
 						 vbutton_box, TRUE, FALSE, 0);
 	/* Overrule the "action_area" value, hopefully this works... */
 	GTK_DIALOG(dialog)->action_area = vbutton_box;
+#endif
     }
 
     /*
@@ -1493,8 +1518,13 @@ gui_mch_dialog(int	type,	    /* type of dialog */
 	gtk_container_set_border_width(GTK_CONTAINER(alignment), 5);
 	gtk_widget_show(alignment);
 
+#ifdef GSEAL_ENABLE
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
+			   alignment, TRUE, FALSE, 0);
+#else
 	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox),
 			   alignment, TRUE, FALSE, 0);
+#endif
 	dialoginfo.noalt = FALSE;
     }
     else
@@ -1603,7 +1633,11 @@ popup_menu_position_func(GtkMenu *menu UNUSED,
 			 gboolean *push_in UNUSED,
 			 gpointer user_data UNUSED)
 {
+#if GSEAL_ENABLE
+    gdk_window_get_origin(gtk_widget_get_window(gui.drawarea), x, y);
+#else
     gdk_window_get_origin(gui.drawarea->window, x, y);
+#endif
 
     if (popup_mouse_pos)
     {
@@ -1613,7 +1647,12 @@ popup_menu_position_func(GtkMenu *menu UNUSED,
 	*x += mx;
 	*y += my;
     }
+#if GSEAL_ENABLE
+    else if (curwin != NULL && gui.drawarea != NULL &&
+             gtk_widget_get_window(gui.drawarea) != NULL)
+#else
     else if (curwin != NULL && gui.drawarea != NULL && gui.drawarea->window != NULL)
+#endif
     {
 	/* Find the cursor position in the current window */
 	*x += FILL_X(W_WINCOL(curwin) + curwin->w_wcol + 1) + 1;
@@ -1813,7 +1852,13 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 
     hbox = gtk_hbox_new(FALSE, 0);
     gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
+#ifdef GSEAL_ENABLE
+    gtk_container_add(
+        GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(frdp->dialog))), hbox
+    );
+#else
     gtk_container_add(GTK_CONTAINER(GTK_DIALOG(frdp->dialog)->vbox), hbox);
+#endif
 
     if (do_replace)
 	table = gtk_table_new(1024, 4, FALSE);
@@ -2072,7 +2117,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     gtk_box_pack_end(GTK_BOX(hbox), tmp, FALSE, FALSE, 10);
 
     /* Suppress automatic show of the unused action area */
+#ifdef GSEAL_ENABLE
+    gtk_widget_hide(gtk_dialog_get_action_area(GTK_DIALOG(frdp->dialog)));
+#else
     gtk_widget_hide(GTK_DIALOG(frdp->dialog)->action_area);
+#endif
     gtk_widget_show_all(hbox);
     gtk_widget_show(frdp->dialog);
 
@@ -2122,11 +2171,23 @@ find_replace_cb(GtkWidget *widget UNUSED, gpointer data)
     }
 
     find_text = (char_u *)gtk_entry_get_text(GTK_ENTRY(sfr->what));
+#ifdef GSEAL_ENABLE
+    direction_down = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(sfr->down));
+#else
     direction_down = GTK_TOGGLE_BUTTON(sfr->down)->active;
+#endif
 
+#ifdef GSEAL_ENABLE
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(sfr->wword)))
+#else
     if (GTK_TOGGLE_BUTTON(sfr->wword)->active)
+#endif
 	flags |= FRD_WHOLE_WORD;
+#ifdef GSEAL_ENABLE
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(sfr->mcase)))
+#else
     if (GTK_TOGGLE_BUTTON(sfr->mcase)->active)
+#endif
 	flags |= FRD_MATCH_CASE;
 
     repl_text = CONVERT_FROM_UTF8(repl_text);

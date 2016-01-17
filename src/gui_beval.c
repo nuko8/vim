@@ -545,7 +545,11 @@ target_event_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
 		 * GDK_POINTER_MOTION_HINT_MASK is set, thus we cannot obtain
 		 * the coordinates from the GdkEventMotion struct directly.
 		 */
+#ifdef GSEAL_ENABLE
+		gdk_window_get_pointer(gtk_widget_get_window(widget), &x, &y, &state);
+#else
 		gdk_window_get_pointer(widget->window, &x, &y, &state);
+#endif
 		pointer_event(beval, x, y, (unsigned int)state);
 	    }
 	    else
@@ -705,10 +709,17 @@ balloon_expose_event_cb(GtkWidget *widget,
 			GdkEventExpose *event,
 			gpointer data UNUSED)
 {
+#ifdef GSEAL_ENABLE
+    gtk_paint_flat_box(gtk_widget_get_style(widget), gtk_widget_get_window(widget),
+		       GTK_STATE_NORMAL, GTK_SHADOW_OUT,
+		       &event->area, widget, "tooltip",
+		       0, 0, -1, -1);
+#else
     gtk_paint_flat_box(widget->style, widget->window,
 		       GTK_STATE_NORMAL, GTK_SHADOW_OUT,
 		       &event->area, widget, "tooltip",
 		       0, 0, -1, -1);
+#endif
 
     return FALSE; /* continue emission */
 }
@@ -1121,7 +1132,11 @@ drawBalloon(BalloonEval *beval)
 	gtk_widget_size_request(beval->balloonShell, &requisition);
 
 	/* Compute position of the balloon area */
+#ifdef GSEAL_ENABLE
+	gdk_window_get_origin(gtk_widget_get_window(beval->target), &x, &y);
+#else
 	gdk_window_get_origin(beval->target->window, &x, &y);
+#endif
 	x += beval->x;
 	y += beval->y;
 
