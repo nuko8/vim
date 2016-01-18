@@ -9,8 +9,12 @@
 #ifndef __GTK_FORM_H__
 #define __GTK_FORM_H__
 
+#ifdef GTK_DISABLE_SINGLE_INCLUDES
+#include <gtk/gtk.h>
+#else
 #include <gdk/gdk.h>
 #include <gtk/gtkcontainer.h>
+#endif
 
 
 #ifdef __cplusplus
