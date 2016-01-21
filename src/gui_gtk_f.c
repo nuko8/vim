@@ -25,7 +25,9 @@
 #include <gtk/gtk.h>	/* without this it compiles, but gives errors at
 			   runtime! */
 #include "gui_gtk_f.h"
-#include <gtk/gtksignal.h>
+#ifndef USE_GTK3
+# include <gtk/gtksignal.h>
+#endif
 #ifdef WIN3264
 # include <gdk/gdkwin32.h>
 #else

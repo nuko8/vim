@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 #define GTK_TYPE_FORM		       (gtk_form_get_type ())
-#ifdef GTK_DISABLE_DEPRECATED
+#if defined(GTK_DISABLE_DEPRECATED) || defined(USE_GTK3)
 #define GTK_FORM(obj)                  (G_TYPE_CHECK_INSTANCE_CAST((obj), GTK_TYPE_FORM, GtkForm))
 #define GTK_FORM_CLASS(klass)          (G_TYPE_CHECK_CLASS_CAST((klass), GTK_TYPE_FORM, GtkFormClass))
 #define GTK_IS_FORM(obj)               (G_TYPE_CHECK_INSTANCE_TYPE((obj), GTK_TYPE_FORM))
@@ -60,7 +60,7 @@ struct _GtkFormClass
     GtkContainerClass parent_class;
 };
 
-#ifdef GTK_DISABLE_DEPRECATED
+#if defined(GTK_DISABLE_DEPRECATED) || defined(USE_GTK3)
 GType gtk_form_get_type(void);
 #else
 GtkType gtk_form_get_type(void);
