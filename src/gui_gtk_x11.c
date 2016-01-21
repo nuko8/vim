@@ -75,7 +75,11 @@ extern void bonobo_dock_item_set_behavior(BonoboDockItem *dock_item, BonoboDockI
 # define GdkEventConfigure int
 # define GdkEventClient int
 #else
-# include <gdk/gdkkeysyms.h>
+# ifdef USE_GTK3
+#  include <gdk/gdkkeysyms-compat.h>
+# else
+#  include <gdk/gdkkeysyms.h>
+# endif
 # include <gdk/gdk.h>
 # ifdef WIN3264
 #  include <gdk/gdkwin32.h>

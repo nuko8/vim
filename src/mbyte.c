@@ -109,7 +109,11 @@
 #endif
 
 #if defined(FEAT_GUI_GTK) && defined(FEAT_XIM)
-# include <gdk/gdkkeysyms.h>
+# ifdef USE_GTK3
+#  include <gdk/gdkkeysyms-compat.h>
+# else
+#  include <gdk/gdkkeysyms.h>
+# endif
 # ifdef WIN3264
 #  include <gdk/gdkwin32.h>
 # else

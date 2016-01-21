@@ -122,7 +122,11 @@ general_beval_cb(BalloonEval *beval, int state UNUSED)
 #if !defined(FEAT_GUI_W32) || defined(PROTO)
 
 #ifdef FEAT_GUI_GTK
-# include <gdk/gdkkeysyms.h>
+# ifdef USE_GTK3
+#  include <gdk/gdkkeysyms-compat.h>
+# else
+#  include <gdk/gdkkeysyms.h>
+# endif
 # include <gtk/gtk.h>
 #else
 # include <X11/keysym.h>
