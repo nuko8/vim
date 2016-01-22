@@ -54,10 +54,23 @@ static void gtk_form_unrealize(GtkWidget *widget);
 static void gtk_form_map(GtkWidget *widget);
 static void gtk_form_size_request(GtkWidget *widget,
 				  GtkRequisition *requisition);
+#ifdef USE_GTK3
+static void gtk_form_get_preferred_width(GtkWidget *widget,
+                                         gint *minimal_width,
+                                         gint *natural_width);
+static void gtk_form_get_preferred_height(GtkWidget *widget,
+                                          gint *minimal_height,
+                                          gint *natural_height);
+#endif
 static void gtk_form_size_allocate(GtkWidget *widget,
 				   GtkAllocation *allocation);
+#ifdef USE_GTK3
+static gboolean gtk_form_draw(GtkWidget *widget,
+                              cairo_t   *cr);
+#else
 static gint gtk_form_expose(GtkWidget *widget,
 			    GdkEventExpose *event);
+#endif
 
 static void gtk_form_remove(GtkContainer *container,
 			    GtkWidget *widget);
@@ -252,9 +265,18 @@ gtk_form_class_init(GtkFormClass *klass)
     widget_class->realize = gtk_form_realize;
     widget_class->unrealize = gtk_form_unrealize;
     widget_class->map = gtk_form_map;
+#ifdef USE_GTK3
+    widget_class->get_preferred_width = gtk_form_get_preferred_width;
+    widget_class->get_preferred_height = gtk_form_get_preferred_height;
+#else
     widget_class->size_request = gtk_form_size_request;
+#endif
     widget_class->size_allocate = gtk_form_size_allocate;
+#ifdef USE_GTK3
+    widget_class->draw = gtk_form_draw;
+#else
     widget_class->expose_event = gtk_form_expose;
+#endif
 
     container_class->remove = gtk_form_remove;
     container_class->forall = gtk_form_forall;
@@ -315,10 +337,16 @@ gtk_form_realize(GtkWidget *widget)
 #endif
     attributes.wclass = GDK_INPUT_OUTPUT;
     attributes.visual = gtk_widget_get_visual(widget);
+#ifndef USE_GTK3
     attributes.colormap = gtk_widget_get_colormap(widget);
+#endif
     attributes.event_mask = GDK_VISIBILITY_NOTIFY_MASK;
 
+#ifdef USE_GTK3
+    attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
+#else
     attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL | GDK_WA_COLORMAP;
+#endif
 
 #ifdef GSEAL_ENABLE
     gtk_widget_set_window(widget,
@@ -347,6 +375,7 @@ gtk_form_realize(GtkWidget *widget)
     gtk_form_set_static_gravity(form->bin_window, TRUE);
 
 #ifdef GSEAL_ENABLE
+#ifndef USE_GTK3
     gtk_widget_set_style(widget,
                          gtk_style_attach(gtk_widget_get_style(widget),
                                           gtk_widget_get_window(widget)));
@@ -356,6 +385,7 @@ gtk_form_realize(GtkWidget *widget)
     gtk_style_set_background(gtk_widget_get_style(widget),
                              form->bin_window,
                              GTK_STATE_NORMAL);
+#endif
 #else
     widget->style = gtk_style_attach(widget->style, widget->window);
     gtk_style_set_background(widget->style, widget->window, GTK_STATE_NORMAL);
@@ -510,6 +540,36 @@ gtk_form_size_request(GtkWidget *widget, GtkRequisition *requisition)
     }
 }
 
+#ifdef USE_GTK3
+    static void
+gtk_form_get_preferred_width(GtkWidget *widget,
+                             gint      *minimal_width,
+                             gint      *natural_width)
+{
+    GtkRequisition requisition;
+
+    gtk_form_size_request(widget, &requisition);
+
+    *minimal_width = requisition.width;
+    *natural_width = requisition.width;
+}
+#endif
+
+#ifdef USE_GTK3
+    static void
+gtk_form_get_preferred_height(GtkWidget *widget,
+                              gint      *minimal_height,
+                              gint      *natural_height)
+{
+    GtkRequisition requisition;
+
+    gtk_form_size_request(widget, &requisition);
+
+    *minimal_height = requisition.height;
+    *natural_height = requisition.height;
+}
+#endif
+
     static void
 gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 {
@@ -587,6 +647,32 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 	gtk_form_send_configure(form);
 }
 
+#ifdef USE_GTK3
+    static gboolean
+gtk_form_draw(GtkWidget *widget,
+              cairo_t   *cr)
+{
+    GList   *tmp_list;
+    GtkForm *form;
+
+    g_return_val_if_fail(GTK_IS_FORM(widget), TRUE);
+
+    form = GTK_FORM(widget);
+
+    for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
+    {
+	GtkFormChild	*formchild = tmp_list->data;
+	GtkWidget	*child	   = formchild->widget;
+
+        if (gtk_widget_is_drawable(child) && !gtk_widget_get_has_window(child))
+	{
+            gtk_container_propagate_draw(GTK_CONTAINER(form), child, cr);
+	}
+    }
+
+    return FALSE;
+}
+#else
     static gint
 gtk_form_expose(GtkWidget *widget, GdkEventExpose *event)
 {
@@ -636,6 +722,7 @@ gtk_form_expose(GtkWidget *widget, GdkEventExpose *event)
 
     return FALSE;
 }
+#endif
 
 /* Container method
  */
@@ -753,18 +840,26 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 #endif
 	attributes.wclass = GDK_INPUT_OUTPUT;
 	attributes.visual = gtk_widget_get_visual(widget);
+#ifndef USE_GTK3
 	attributes.colormap = gtk_widget_get_colormap(widget);
+#endif
 	attributes.event_mask = GDK_EXPOSURE_MASK;
 
+#ifdef USE_GTK3
+	attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
+#else
 	attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL | GDK_WA_COLORMAP;
+#endif
 	child->window = gdk_window_new(form->bin_window,
 				       &attributes, attributes_mask);
 	gdk_window_set_user_data(child->window, widget);
 
 #ifdef GSEAL_ENABLE
+#ifndef USE_GTK3
 	gtk_style_set_background(gtk_widget_get_style(widget),
 				 child->window,
 				 GTK_STATE_NORMAL);
+#endif
 #else
 	gtk_style_set_background(widget->style,
 				 child->window,
