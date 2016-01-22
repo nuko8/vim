@@ -77,6 +77,7 @@ extern void bonobo_dock_item_set_behavior(BonoboDockItem *dock_item, BonoboDockI
 #else
 # ifdef USE_GTK3
 #  include <gdk/gdkkeysyms-compat.h>
+#  include <gtk/gtkx.h>
 # else
 #  include <gdk/gdkkeysyms.h>
 # endif
@@ -611,6 +612,30 @@ visibility_event(GtkWidget *widget UNUSED,
 /*
  * Redraw the corresponding portions of the screen.
  */
+#ifdef USE_GTK3
+    static gboolean
+draw_event(GtkWidget*widget UNUSED,
+           cairo_t *cr,
+           gpointer user_data UNUSED)
+{
+    GdkRectangle clip_rect;
+
+    /* Skip this when the GUI isn't set up yet, will redraw later. */
+    if (gui.starting)
+	return FALSE;
+
+    out_flush();		/* make sure all output has been processed */
+
+    if (!gdk_cairo_get_clip_rectangle(cr, &clip_rect))
+        return FALSE;
+
+    gui_redraw(clip_rect.x, clip_rect.y, clip_rect.width, clip_rect.height);
+
+    /* TODO: Clear the border areas if needed */
+
+    return FALSE;
+}
+#else
     static gint
 expose_event(GtkWidget *widget UNUSED,
 	     GdkEventExpose *event,
@@ -655,6 +680,7 @@ expose_event(GtkWidget *widget UNUSED,
 
     return FALSE;
 }
+#endif
 
 #ifdef FEAT_CLIENTSERVER
 /*
@@ -667,7 +693,11 @@ property_event(GtkWidget *widget,
 {
     if (event->type == GDK_PROPERTY_NOTIFY
 	    && event->state == (int)GDK_PROPERTY_NEW_VALUE
+#ifdef USE_GTK3
+            && GDK_WINDOW_XID(event->window) == commWindow
+#else
 	    && GDK_WINDOW_XWINDOW(event->window) == commWindow
+#endif
 	    && GET_X_ATOM(event->atom) == commProperty)
     {
 	XEvent xev;
@@ -2447,7 +2477,11 @@ setup_save_yourself(void)
 	/* first get the existing value */
 #if GSEAL_ENABLE
 	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+#ifdef USE_GTK3
+                    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
+#else
 		    GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)),
+#endif
 		    &existing_atoms, &count))
 #else
 	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
@@ -2477,7 +2511,11 @@ setup_save_yourself(void)
 		    new_atoms[count] = save_yourself_xatom;
 #ifdef GSEAL_ENABLE
 		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+#if USE_GTK3
+			    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
+#else
 			    GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)),
+#endif
 			    new_atoms, count + 1);
 #else
 		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
@@ -2529,7 +2567,11 @@ global_event_filter(GdkXEvent *xev,
 	 */
 #ifdef GSEAL_ENABLE
 	XSetCommand(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+#ifdef USE_GTK3
+		    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
+#else
 		    GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)),
+#endif
 		    NULL, 0);
 #else
 	XSetCommand(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
@@ -2572,7 +2614,11 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     if (echo_wid_arg)
     {
 #ifdef GSEAL_ENABLE
+#ifdef USE_GTK3
+	printf("WID: %ld\n", (long)GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)));
+#else
 	printf("WID: %ld\n", (long)GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)));
+#endif
 #else
 	printf("WID: %ld\n", (long)GDK_WINDOW_XWINDOW(gui.mainwin->window));
 #endif
@@ -2613,7 +2659,11 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     {
 	/* This is a :gui command in a plain vim with no previous server */
 #ifdef GSEAL_ENABLE
+#ifdef USE_GTK3
+	commWindow = GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin));
+#else
 	commWindow = GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin));
+#endif
 
 	(void)serverRegisterName(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
 				 serverDelayedStartName);
@@ -2632,8 +2682,13 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 	 * If we have not registered a name yet, remember the window
 	 */
 #ifdef GSEAL_ENABLE
+#ifdef USE_GTK3
+	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+				     GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)));
+#else
 	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
 				     GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin)));
+#endif
 #else
 	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 				     GDK_WINDOW_XWINDOW(gui.mainwin->window));
@@ -2654,7 +2709,11 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 create_blank_pointer(void)
 {
     GdkWindow	*root_window = NULL;
+#ifdef USE_GTK3
+    GdkPixbuf   *blank_mask;
+#else
     GdkPixmap	*blank_mask;
+#endif
     GdkCursor	*cursor;
     GdkColor	color = { 0, 0, 0, 0 };
 #ifndef GDK_DISABLE_DEPRECATED
@@ -2669,6 +2728,28 @@ create_blank_pointer(void)
      * in size. */
 #ifdef GDK_DISABLE_DEPRECATED
     {
+#ifdef USE_GTK3
+        cairo_surface_t *surf;
+        cairo_t         *cr;
+
+        surf = cairo_image_surface_create(CAIRO_FORMAT_A1, 1, 1);
+        cr = cairo_create(surf);
+
+        cairo_set_source_rgb(cr,
+                             color.red / 65535.0,
+                             color.green / 65535.0,
+                             color.blue / 65535.0);
+        cairo_rectangle(cr, 0, 0, 1, 1);
+        cairo_fill(cr);
+        cairo_destroy(cr);
+
+        blank_mask = gdk_pixbuf_get_from_surface(surf, 0, 0, 1, 1);
+        cairo_surface_destroy(surf);
+
+        cursor = gdk_cursor_new_from_pixbuf(gdk_window_get_display(root_window),
+                                            blank_mask, 0, 0);
+        g_object_unref(blank_mask);
+#else
         cairo_t *cr;
 
         blank_mask = gdk_pixmap_new(NULL, 1, 1, 1);
@@ -2683,6 +2764,7 @@ create_blank_pointer(void)
                                             0, 0);
 
         g_object_unref(blank_mask);
+#endif
     }
 #else
     blank_mask = gdk_bitmap_create_from_data(root_window, blank_data, 1, 1);
@@ -3340,7 +3422,12 @@ gui_mch_update_tabline(void)
 	if (page == NULL)
 	{
 	    /* Add notebook page */
+#if GTK_CHECK_VERSION(3,2,0)
+            page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+            gtk_box_set_homogeneous(GTK_BOX(page), FALSE);
+#else
 	    page = gtk_vbox_new(FALSE, 0);
+#endif
 	    gtk_widget_show(page);
 	    event_box = gtk_event_box_new();
 	    gtk_widget_show(event_box);
@@ -3628,7 +3715,12 @@ gui_mch_init(void)
     gtk_window_add_accel_group(GTK_WINDOW(gui.mainwin), gui.accel_group);
 
     /* A vertical box holds the menubar, toolbar and main text window. */
+#if GTK_CHECK_VERSION(3,2,0)
+    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_set_homogeneous(GTK_BOX(vbox), FALSE);
+#else
     vbox = gtk_vbox_new(FALSE, 0);
+#endif
 
 #ifdef FEAT_GUI_GNOME
     if (using_gnome)
@@ -3691,11 +3783,15 @@ gui_mch_init(void)
      * Create the toolbar and handle
      */
     /* some aesthetics on the toolbar */
+#ifdef USE_GTK3
+    /* TODO: Use GtkCssProvider. */
+#else
     gtk_rc_parse_string(
 	    "style \"vim-toolbar-style\" {\n"
 	    "  GtkToolbar::button_relief = GTK_RELIEF_NONE\n"
 	    "}\n"
 	    "widget \"*.vim-toolbar\" style \"vim-toolbar-style\"\n");
+#endif
     gui.toolbar = gtk_toolbar_new();
     gtk_widget_set_name(gui.toolbar, "vim-toolbar");
     set_toolbar_style(GTK_TOOLBAR(gui.toolbar));
@@ -3750,7 +3846,12 @@ gui_mch_init(void)
 	GtkWidget *page, *label, *event_box;
 
 	/* Add the first tab. */
+#if GTK_CHECK_VERSION(3,2,0)
+        page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        gtk_box_set_homogeneous(GTK_BOX(vbox), FALSE);
+#else
 	page = gtk_vbox_new(FALSE, 0);
+#endif
 	gtk_widget_show(page);
 	gtk_container_add(GTK_CONTAINER(gui.tabline), page);
 	label = gtk_label_new("-Empty-");
@@ -3888,8 +3989,13 @@ gui_mch_init(void)
     g_signal_connect(G_OBJECT(gui.mainwin), "visibility-notify-event",
                      G_CALLBACK(visibility_event), NULL);
 #endif
+#ifdef USE_GTK3
+    g_signal_connect(G_OBJECT(gui.drawarea), "draw",
+                     G_CALLBACK(draw_event), NULL);
+#else
     g_signal_connect(G_OBJECT(gui.drawarea), "expose-event",
                      G_CALLBACK(expose_event), NULL);
+#endif
 #else
     gtk_signal_connect(GTK_OBJECT(gui.mainwin), "visibility_notify_event",
 		       GTK_SIGNAL_FUNC(visibility_event), NULL);
@@ -4087,8 +4193,13 @@ form_configure_event(GtkWidget *widget UNUSED,
  * We can't do much more here than to trying to preserve what had been done,
  * since the window is already inevitably going away.
  */
+#if USE_GTK3
+    static void
+mainwin_destroy_cb(GObject *object UNUSED, gpointer data UNUSED)
+#else
     static void
 mainwin_destroy_cb(GtkObject *object UNUSED, gpointer data UNUSED)
+#endif
 {
     /* Don't write messages to the GUI anymore */
     full_screen = FALSE;
@@ -4715,7 +4826,11 @@ gui_mch_font_dialog(char_u *oldval)
     char_u	*fontname = NULL;
     char_u	*oldname;
 
+#if GTK_CHECK_VERSION(3,2,0)
+    dialog = gtk_font_chooser_dialog_new(NULL, NULL);
+#else
     dialog = gtk_font_selection_dialog_new(NULL);
+#endif
 
     gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(gui.mainwin));
     gtk_window_set_destroy_with_parent(GTK_WINDOW(dialog), TRUE);
@@ -4742,15 +4857,25 @@ gui_mch_font_dialog(char_u *oldval)
 	    }
 	}
 
+#if GTK_CHECK_VERSION(3,2,0)
+        gtk_font_chooser_set_font(
+                GTK_FONT_CHOOSER(dialog), (const gchar *)oldname);
+#else
 	gtk_font_selection_dialog_set_font_name(
 		GTK_FONT_SELECTION_DIALOG(dialog), (const char *)oldname);
+#endif
 
 	if (oldname != oldval)
 	    vim_free(oldname);
     }
     else
+#if GTK_CHECK_VERSION(3,2,0)
+        gtk_font_chooser_set_font(
+		GTK_FONT_CHOOSER(dialog), DEFAULT_FONT);
+#else
 	gtk_font_selection_dialog_set_font_name(
 		GTK_FONT_SELECTION_DIALOG(dialog), DEFAULT_FONT);
+#endif
 
     response = gtk_dialog_run(GTK_DIALOG(dialog));
 
@@ -4758,8 +4883,12 @@ gui_mch_font_dialog(char_u *oldval)
     {
 	char *name;
 
+#if GTK_CHECK_VERSION(3,2,0)
+        name = gtk_font_chooser_get_font(GTK_FONT_CHOOSER(dialog));
+#else
 	name = gtk_font_selection_dialog_get_font_name(
 			    GTK_FONT_SELECTION_DIALOG(dialog));
+#endif
 	if (name != NULL)
 	{
 	    char_u  *p;
@@ -5087,6 +5216,31 @@ gui_mch_free_font(GuiFont font)
 	pango_font_description_free(font);
 }
 
+#ifdef USE_GTK3
+    static unsigned long
+gui_gtk_get_pixel_from_rgb(const GdkRGBA *rgba)
+{
+    Display *dpy;
+    XColor color;
+
+    dpy = gui_mch_get_display();
+    if (dpy == NULL)
+    {
+        dpy = GDK_SCREEN_XDISPLAY(gdk_screen_get_default());
+        if (dpy == NULL)
+            return 0;
+    }
+
+    color.red = rgba->red * 65535;
+    color.green = rgba->green * 65535;
+    color.blue = rgba->blue * 65535;
+
+    XAllocColor(dpy, DefaultColormap(dpy, DefaultScreen(dpy)), &color);
+
+    return color.pixel;
+}
+#endif
+
 /*
  * Return the Pixel value (color) for the given color name.  This routine was
  * pretty much taken from example code in the Silicon Graphics OSF/Motif
@@ -5134,17 +5288,29 @@ gui_mch_get_color(char_u *name)
 
     while (name != NULL)
     {
+#ifdef USE_GTK3
+        GdkRGBA     color;
+#else
 	GdkColor    color;
+#endif
 	int	    parsed;
 	int	    i;
 
+#ifdef USE_GTK3
+        parsed = gdk_rgba_parse(&color, (const gchar *)name);
+#else
 	parsed = gdk_color_parse((const char *)name, &color);
+#endif
 
 	if (parsed)
 	{
+#ifdef USE_GTK3
+            return (guicolor_T)gui_gtk_get_pixel_from_rgb(&color);
+#else
 	    gdk_colormap_alloc_color(gtk_widget_get_colormap(gui.drawarea),
 				     &color, FALSE, TRUE);
 	    return (guicolor_T)color.pixel;
+#endif
 	}
 	/* add a few builtin names and try again */
 	for (i = 0; ; ++i)
@@ -5336,15 +5502,42 @@ setup_zero_width_cluster(PangoItem *item, PangoGlyphInfo *glyph,
 	glyph->geometry.x_offset = -width + MAX(0, width - ink_rect.width) / 2;
 }
 
+#ifdef USE_GTK3
+    static void
+gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkColor *result)
+{
+    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+    GdkDisplay * const dpy = gdk_window_get_display(win);
+    XWindowAttributes attrs;
+    XColor color;
+
+    color.pixel = pixel;
+    XGetWindowAttributes(GDK_DISPLAY_XDISPLAY(dpy),
+                         GDK_WINDOW_XID(win),
+                         &attrs);
+    XQueryColor(GDK_DISPLAY_XDISPLAY(dpy),
+                attrs.colormap,
+                &color);
+
+    result->pixel = color.pixel;
+    result->red = color.red;
+    result->green = color.green;
+    result->blue = color.blue;
+}
+#endif
+
 #ifdef GDK_DISABLE_DEPRECATED
     static void
 set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
 {
     GdkColor result;
-
+#ifdef USE_GTK3
+    gui_gtk_get_rgb_from_pixel(pixel, &result);
+#else
     gdk_colormap_query_color(gtk_widget_get_colormap(gui.drawarea),
                              pixel,
                              &result);
+#endif
     cairo_set_source_rgb(cr,
                          result.red / 65535.0,
                          result.green / 65535.0,
@@ -5824,7 +6017,11 @@ gui_get_x11_windis(Window *win, Display **dis)
     {
 #ifdef GSEAL_ENABLE
 	*dis = GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin));
+#ifdef USE_GTK3
+	*win = GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin));
+#else
 	*win = GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.mainwin));
+#endif
 #else
 	*dis = GDK_WINDOW_XDISPLAY(gui.mainwin->window);
 	*win = GDK_WINDOW_XWINDOW(gui.mainwin->window);
@@ -6420,7 +6617,20 @@ gui_mch_clear_all(void)
 {
 #ifdef GSEAL_ENABLE
     if (gtk_widget_get_window(gui.drawarea) != NULL)
+#ifdef USE_GTK3
+    {
+        GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+        cairo_t * const cr = gdk_cairo_create(win);
+        set_cairo_source_rgb_from_pixel(cr, gui.bgcolor->pixel);
+        cairo_rectangle(cr, 0, 0,
+                        gtk_widget_get_allocated_width(gui.drawarea),
+                        gtk_widget_get_allocated_height(gui.drawarea));
+        cairo_fill(cr);
+        cairo_destroy(cr);
+    }
+#else
 	gdk_window_clear(gtk_widget_get_window(gui.drawarea));
+#endif
 #else
     if (gui.drawarea->window != NULL)
 	gdk_window_clear(gui.drawarea->window);
@@ -6754,8 +6964,12 @@ gui_mch_enable_scrollbar(scrollbar_T *sb, int flag)
 gui_mch_get_rgb(guicolor_T pixel)
 {
     GdkColor color;
+#ifdef USE_GTK3
+    gui_gtk_get_rgb_from_pixel(pixel, &color);
+#else
     gdk_colormap_query_color(gtk_widget_get_colormap(gui.drawarea),
 			     (unsigned long)pixel, &color);
+#endif
 
     return (((unsigned)color.red   & 0xff00) << 8)
 	 |  ((unsigned)color.green & 0xff00)
@@ -6782,9 +6996,15 @@ gui_mch_setmouse(int x, int y)
      * internal GDK mechanism present to accomplish this.  (and for good
      * reason...) */
 #ifdef GSEAL_ENABLE
+#ifdef USE_GTK3
+    XWarpPointer(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.drawarea)),
+		 (Window)0, GDK_WINDOW_XID(gtk_widget_get_window(gui.drawarea)),
+		 0, 0, 0U, 0U, x, y);
+#else
     XWarpPointer(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.drawarea)),
 		 (Window)0, GDK_WINDOW_XWINDOW(gtk_widget_get_window(gui.drawarea)),
 		 0, 0, 0U, 0U, x, y);
+#endif
 #else
     XWarpPointer(GDK_WINDOW_XDISPLAY(gui.drawarea->window),
 		 (Window)0, GDK_WINDOW_XWINDOW(gui.drawarea->window),
