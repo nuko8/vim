@@ -124,6 +124,7 @@ general_beval_cb(BalloonEval *beval, int state UNUSED)
 #ifdef FEAT_GUI_GTK
 # ifdef USE_GTK3
 #  include <gdk/gdkkeysyms-compat.h>
+#  include <gdk/gdkx.h>
 # else
 #  include <gdk/gdkkeysyms.h>
 # endif
@@ -173,7 +174,11 @@ static gboolean timeout_cb(gpointer);
 # else
 static gint timeout_cb(gpointer);
 # endif
-static gint balloon_expose_event_cb(GtkWidget *, GdkEventExpose *, gpointer);
+# ifdef USE_GTK3
+static gboolean balloon_draw_event_cb (GtkWidget *, cairo_t *, gpointer);
+# else
+static gint balloon_expose_event_cb (GtkWidget *, GdkEventExpose *, gpointer);
+# endif
 #else
 static void addEventHandler(Widget, BalloonEval *);
 static void removeEventHandler(BalloonEval *);
@@ -708,6 +713,15 @@ timeout_cb(gpointer data)
     return FALSE; /* don't call me again */
 }
 
+#ifdef USE_GTK3
+    static gboolean
+balloon_draw_event_cb(GtkWidget *widget UNUSED,
+                      cairo_t   *cr UNUSED,
+                      gpointer   data UNUSED)
+{
+    return TRUE;;
+}
+#else
     static gint
 balloon_expose_event_cb(GtkWidget *widget,
 			GdkEventExpose *event,
@@ -727,6 +741,7 @@ balloon_expose_event_cb(GtkWidget *widget,
 
     return FALSE; /* continue emission */
 }
+#endif
 
 #else /* !FEAT_GUI_GTK */
 
@@ -1009,8 +1024,29 @@ set_printable_label_text(GtkLabel *label, char_u *text)
 	aep = syn_gui_attr2entry(hl_attr(HLF_8));
 	pixel = (aep != NULL) ? aep->ae_u.gui.fg_color : INVALCOLOR;
 	if (pixel != INVALCOLOR)
+#if USE_GTK3
+        {
+            GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+            GdkDisplay * const dpy = gdk_window_get_display(win);
+            XWindowAttributes attrs;
+            XColor xcolor;
+
+            xcolor.pixel = pixel;
+            XGetWindowAttributes(GDK_DISPLAY_XDISPLAY(dpy),
+                                 GDK_WINDOW_XID(win),
+                                 &attrs);
+            XQueryColor(GDK_DISPLAY_XDISPLAY(dpy),
+                        attrs.colormap,
+                        &xcolor);
+
+            color.red = xcolor.red;
+            color.green = xcolor.green;
+            color.blue = xcolor.blue;
+        }
+#else
 	    gdk_colormap_query_color(gtk_widget_get_colormap(gui.drawarea),
 				     (unsigned long)pixel, &color);
+#endif
 
 	pdest = buf;
 	p = text;
@@ -1111,8 +1147,10 @@ drawBalloon(BalloonEval *beval)
 	screen_w = gdk_screen_width();
 	screen_h = gdk_screen_height();
 # endif
+#ifndef USE_GTK3
 	gtk_widget_ensure_style(beval->balloonShell);
 	gtk_widget_ensure_style(beval->balloonLabel);
+#endif
 
 	set_printable_label_text(GTK_LABEL(beval->balloonLabel), beval->msg);
 	/*
@@ -1215,8 +1253,13 @@ createBalloonEvalWindow(BalloonEval *beval)
 #endif
 
 #ifdef GTK_DISABLE_DEPRECATED
+#ifdef USE_GTK3
+    g_signal_connect(G_OBJECT(beval->balloonShell), "draw",
+                     G_CALLBACK(balloon_draw_event_cb), NULL);
+#else
     g_signal_connect(G_OBJECT(beval->balloonShell), "expose-event",
                      G_CALLBACK(balloon_expose_event_cb), NULL);
+#endif
 #else
     gtk_signal_connect((GtkObject*)(beval->balloonShell), "expose_event",
 		       GTK_SIGNAL_FUNC(balloon_expose_event_cb), NULL);
