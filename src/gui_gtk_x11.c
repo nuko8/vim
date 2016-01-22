@@ -5545,23 +5545,17 @@ set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
 }
 #endif
 
+#ifdef GDK_DISABLE_DEPRECATED
     static void
 draw_glyph_string(int row, int col, int num_cells, int flags,
-		  PangoFont *font, PangoGlyphString *glyphs
-#ifdef GDK_DISABLE_DEPRECATED
-                  , const GdkPoint *clip_orig, const GdkRectangle *clip_rect
+		  PangoFont *font, PangoGlyphString *glyphs,
+                  cairo_t *cr)
+#else
+    static void
+draw_glyph_string(int row, int col, int num_cells, int flags,
+		  PangoFont *font, PangoGlyphString *glyphs)
 #endif
-                  )
 {
-#ifdef GDK_DISABLE_DEPRECATED
-    cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
-    cairo_translate(cr, clip_orig->x, clip_orig->y);
-    cairo_rectangle(cr,
-                    clip_rect->x, clip_rect->y,
-                    clip_rect->width, clip_rect->height);
-    cairo_clip(cr);
-#endif
-
     if (!(flags & DRAW_TRANSP))
     {
 #ifdef GDK_DISABLE_DEPRECATED
@@ -5615,17 +5609,18 @@ draw_glyph_string(int row, int col, int num_cells, int flags,
 			TEXT_Y(row),
 			glyphs);
 #endif
-
-#ifdef GDK_DISABLE_DEPRECATED
-    cairo_destroy(cr);
-#endif
 }
 
 /*
  * Draw underline and undercurl at the bottom of the character cell.
  */
+#ifdef GDK_DISABLE_DEPRECATED
+    static void
+draw_under(int flags, int row, int col, int cells, cairo_t *cr)
+#else
     static void
 draw_under(int flags, int row, int col, int cells)
+#endif
 {
     int			i;
     int			offset;
@@ -5636,9 +5631,6 @@ draw_under(int flags, int row, int col, int cells)
     if (flags & DRAW_UNDERC)
     {
 #ifdef GDK_DISABLE_DEPRECATED
-        cairo_t *cr;
-
-        cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
         cairo_set_line_width(cr, 1.0);
         set_cairo_source_rgb_from_pixel(cr, gui.spcolor->pixel);
 	for (i = FILL_X(col); i < FILL_X(col + cells); ++i)
@@ -5647,8 +5639,6 @@ draw_under(int flags, int row, int col, int cells)
 	    cairo_line_to(cr, i + 0.5, y - offset + 0.5);
 	}
         cairo_stroke(cr);
-
-        cairo_destroy(cr);
 #else
 	gdk_gc_set_foreground(gui.text_gc, gui.spcolor);
 	for (i = FILL_X(col); i < FILL_X(col + cells); ++i)
@@ -5669,15 +5659,11 @@ draw_under(int flags, int row, int col, int cells)
 	    y -= p_linespace - 1;
 #ifdef GDK_DISABLE_DEPRECATED
         {
-            cairo_t *cr;
-
-            cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
             cairo_set_line_width(cr, 1.0);
             set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
             cairo_move_to(cr, FILL_X(col) + 0.5, y + 0.5);
             cairo_line_to(cr, FILL_X(col + cells) - 0.5, y + 0.5);
             cairo_stroke(cr);
-            cairo_destroy(cr);
         }
 #else
 	gdk_draw_line(gui.drawarea->window, gui.text_gc,
@@ -5691,9 +5677,6 @@ draw_under(int flags, int row, int col, int cells)
 gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
 {
     GdkRectangle	area;		    /* area for clip mask	  */
-#ifdef GDK_DISABLE_DEPRECATED
-    GdkPoint            orig;               /* origin of clip mask        */
-#endif
     PangoGlyphString	*glyphs;	    /* glyphs of current item	  */
     int			column_offset = 0;  /* column offset in cells	  */
     int			i;
@@ -5702,6 +5685,9 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
     int			convlen;
     char_u		*sp, *bp;
     int			plen;
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_t            *cr;
+#endif
 
 #ifdef GSEAL_ENABLE
     if (gui.text_context == NULL || gtk_widget_get_window(gui.drawarea) == NULL)
@@ -5761,8 +5747,9 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
     area.height = gui.char_height;
 
 #ifdef GDK_DISABLE_DEPRECATED
-    orig.x = 0;
-    orig.y = 0;
+    cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+    cairo_rectangle(cr, area.x, area.y, area.width, area.height);
+    cairo_clip(cr);
 #else
     gdk_gc_set_clip_origin(gui.text_gc, 0, 0);
     gdk_gc_set_clip_rectangle(gui.text_gc, &area);
@@ -5794,8 +5781,7 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
 	}
 
 #ifdef GDK_DISABLE_DEPRECATED
-	draw_glyph_string(row, col, len, flags, gui.ascii_font, glyphs,
-                          &orig, &area);
+	draw_glyph_string(row, col, len, flags, gui.ascii_font, glyphs, cr);
 #else
 	draw_glyph_string(row, col, len, flags, gui.ascii_font, glyphs);
 #endif
@@ -5959,7 +5945,7 @@ not_ascii:
 #ifdef GDK_DISABLE_DEPRECATED
 	    draw_glyph_string(row, col + column_offset, item_cells,
 			      flags, item->analysis.font, glyphs,
-                              &orig, &area);
+                              cr);
 #else
 	    draw_glyph_string(row, col + column_offset, item_cells,
 			      flags, item->analysis.font, glyphs);
@@ -5975,12 +5961,18 @@ not_ascii:
 
 skipitall:
     /* Draw underline and undercurl. */
+#ifdef GDK_DISABLE_DEPRECATED
+    draw_under(flags, row, col, column_offset, cr);
+#else
     draw_under(flags, row, col, column_offset);
+#endif
 
     pango_glyph_string_free(glyphs);
     vim_free(conv_buf);
 
-#ifndef GDK_DISABLE_DEPRECATED
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_destroy(cr);
+#else
     gdk_gc_set_clip_rectangle(gui.text_gc, NULL);
 #endif
 
