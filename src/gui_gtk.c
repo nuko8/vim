@@ -1371,8 +1371,9 @@ dialog_add_buttons(GtkDialog *dialog, char_u *button_string)
     /* Check 'v' flag in 'guioptions': vertical button placement. */
     if (vim_strchr(p_go, GO_VERTICAL) != NULL)
     {
-#ifndef GSEAL_ENABLE
-        /* XXX It doesn't look this code works with GTK+ 3. */
+#ifdef GSEAL_ENABLE
+        /* TODO: GTK3 code should come here. */
+#else
 	GtkWidget	*vbutton_box;
 
 	vbutton_box = gtk_vbutton_box_new();
