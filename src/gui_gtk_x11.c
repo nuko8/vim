@@ -626,12 +626,8 @@ draw_event(GtkWidget*widget UNUSED,
 
     out_flush();		/* make sure all output has been processed */
 
-    if (!gdk_cairo_get_clip_rectangle(cr, &clip_rect))
-        return FALSE;
-
-    gui_redraw(clip_rect.x, clip_rect.y, clip_rect.width, clip_rect.height);
-
-    /* TODO: Clear the border areas if needed */
+    if (gdk_cairo_get_clip_rectangle(cr, &clip_rect))
+        gui_redraw(clip_rect.x, clip_rect.y, clip_rect.width, clip_rect.height);
 
     return FALSE;
 }
