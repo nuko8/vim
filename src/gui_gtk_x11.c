@@ -6724,27 +6724,7 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
     const int width  = gui.char_width * (right - left + 1) + 1;
     const int height = gui.char_height * (bot - row - num_lines + 1);
 
-    cairo_t * const cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
-
-    cairo_surface_t * const aux_surf =
-        cairo_surface_create_similar(
-            cairo_get_target(cr),
-            cairo_surface_get_content(cairo_get_target(cr)),
-            width,
-            height
-        );
-    cairo_t * const aux_cr = cairo_create(aux_surf);
-
-    cairo_set_source_surface(aux_cr, cairo_get_target(cr), x, y_src);
-    cairo_paint(aux_cr);
-
-    cairo_set_source_surface(cr, aux_surf, x, y_dest);
-    cairo_paint(cr);
-
-    cairo_destroy(aux_cr);
-    cairo_surface_destroy(aux_surf);
-
-    cairo_destroy(cr);
+    gdk_window_scroll(gtk_widget_get_window(gui.drawarea), 0, y_dest - y_src);
 
     if (from > to)
         gui_clear_block(bot - num_lines + 1, left, bot, right);
