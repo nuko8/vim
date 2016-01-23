@@ -1026,22 +1026,30 @@ set_printable_label_text(GtkLabel *label, char_u *text)
 	if (pixel != INVALCOLOR)
 #if USE_GTK3
         {
-            GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
-            GdkDisplay * const dpy = gdk_window_get_display(win);
-            XWindowAttributes attrs;
-            XColor xcolor;
+            GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
 
-            xcolor.pixel = pixel;
-            XGetWindowAttributes(GDK_DISPLAY_XDISPLAY(dpy),
-                                 GDK_WINDOW_XID(win),
-                                 &attrs);
-            XQueryColor(GDK_DISPLAY_XDISPLAY(dpy),
-                        attrs.colormap,
-                        &xcolor);
+            if (visual == NULL)
+            {
+                color.red = 0;
+                color.green = 0;
+                color.blue = 0;
+            }
+            else
+            {
+                guint32 r_mask, g_mask, b_mask;
+                gint r_shift, g_shift, b_shift;
 
-            color.red = xcolor.red;
-            color.green = xcolor.green;
-            color.blue = xcolor.blue;
+                gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift,
+                                                 NULL);
+                gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift,
+                                                   NULL);
+                gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift,
+                                                  NULL);
+
+                color.red = ((pixel & r_mask) >> r_shift) << 8;
+                color.green = ((pixel & g_mask) >> g_shift) << 8;
+                color.blue = ((pixel & b_mask) >> b_shift) << 8;
+            }
         }
 #else
 	    gdk_colormap_query_color(gtk_widget_get_colormap(gui.drawarea),

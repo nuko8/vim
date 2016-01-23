@@ -5217,27 +5217,28 @@ gui_mch_free_font(GuiFont font)
 }
 
 #ifdef USE_GTK3
-    static unsigned long
+    static guint32
 gui_gtk_get_pixel_from_rgb(const GdkRGBA *rgba)
 {
-    Display *dpy;
-    XColor color;
+    GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
+    guint32 r_mask, g_mask, b_mask;
+    gint r_shift, g_shift, b_shift;
+    guint32 r, g, b;
 
-    dpy = gui_mch_get_display();
-    if (dpy == NULL)
-    {
-        dpy = GDK_SCREEN_XDISPLAY(gdk_screen_get_default());
-        if (dpy == NULL)
-            return 0;
-    }
+    if (visual == NULL)
+        return 0;
 
-    color.red = rgba->red * 65535;
-    color.green = rgba->green * 65535;
-    color.blue = rgba->blue * 65535;
+    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
+    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
+    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
 
-    XAllocColor(dpy, DefaultColormap(dpy, DefaultScreen(dpy)), &color);
+    r = rgba->red * 65535;
+    g = rgba->green * 65535;
+    b = rgba->blue * 65535;
 
-    return color.pixel;
+    return ((r << r_shift) & r_mask) |
+           ((g << g_shift) & g_mask) |
+           ((b << b_shift) & b_mask);
 }
 #endif
 
@@ -5506,23 +5507,27 @@ setup_zero_width_cluster(PangoItem *item, PangoGlyphInfo *glyph,
     static void
 gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkColor *result)
 {
-    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
-    GdkDisplay * const dpy = gdk_window_get_display(win);
-    XWindowAttributes attrs;
-    XColor color;
+    GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
+    guint32 r_mask, g_mask, b_mask;
+    gint r_shift, g_shift, b_shift;
 
-    color.pixel = pixel;
-    XGetWindowAttributes(GDK_DISPLAY_XDISPLAY(dpy),
-                         GDK_WINDOW_XID(win),
-                         &attrs);
-    XQueryColor(GDK_DISPLAY_XDISPLAY(dpy),
-                attrs.colormap,
-                &color);
+    if (visual == NULL)
+    {
+        result->pixel = 0;
+        result->red = 0;
+        result->green = 0;
+        result->blue = 0;
+        return;
+    }
 
-    result->pixel = color.pixel;
-    result->red = color.red;
-    result->green = color.green;
-    result->blue = color.blue;
+    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
+    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
+    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
+
+    result->pixel = pixel;
+    result->red = ((pixel & r_mask) >> r_shift) << 8;
+    result->green = ((pixel & g_mask) >> g_shift) << 8;
+    result->blue = ((pixel & b_mask) >> b_shift) << 8;
 }
 #endif
 
