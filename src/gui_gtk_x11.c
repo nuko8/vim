@@ -4818,6 +4818,11 @@ gui_mch_adjust_charheight(void)
  * a) implement our own (possibly copying the code from somewhere else) or
  * b) just live with it.
  */
+#ifdef USE_GTK3
+static gboolean font_filter(const PangoFontFamily *family,
+                            const PangoFontFace   *face,
+                            gpointer               data);
+#endif
     char_u *
 gui_mch_font_dialog(char_u *oldval)
 {
@@ -4828,6 +4833,8 @@ gui_mch_font_dialog(char_u *oldval)
 
 #if GTK_CHECK_VERSION(3,2,0)
     dialog = gtk_font_chooser_dialog_new(NULL, NULL);
+    gtk_font_chooser_set_filter_func(GTK_FONT_CHOOSER(dialog), font_filter,
+                                      NULL, NULL);
 #else
     dialog = gtk_font_selection_dialog_new(NULL);
 #endif
@@ -4912,6 +4919,16 @@ gui_mch_font_dialog(char_u *oldval)
 
     return fontname;
 }
+
+#ifdef USE_GTK3
+    static gboolean
+font_filter(const PangoFontFamily *family,
+            const PangoFontFace   *face UNUSED,
+            gpointer               data UNUSED)
+{
+    return pango_font_family_is_monospace((PangoFontFamily *)family);
+}
+#endif
 
 /*
  * Some monospace fonts don't support a bold weight, and fall back
