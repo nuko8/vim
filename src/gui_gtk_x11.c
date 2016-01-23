@@ -6609,22 +6609,41 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 #endif
 }
 
+#ifdef USE_GTK3
+    static void
+gui_gtk_window_clear(GdkWindow *win)
+{
+    cairo_pattern_t *pat;
+    cairo_t *cr;
+
+    cr = gdk_cairo_create(win);
+
+    pat = gdk_window_get_background_pattern(win);
+    if (pat)
+    {
+        cairo_set_source(cr, pat);
+        cairo_paint(cr);
+    }
+    else
+    {
+        set_cairo_source_rgb_from_pixel(cr, gui.back_pixel);
+        cairo_rectangle(cr, 0, 0,
+                        gdk_window_get_width(win),
+                        gdk_window_get_height(win));
+        cairo_fill(cr);
+    }
+
+    cairo_destroy(cr);
+}
+#endif
+
     void
 gui_mch_clear_all(void)
 {
 #ifdef GSEAL_ENABLE
     if (gtk_widget_get_window(gui.drawarea) != NULL)
 #ifdef USE_GTK3
-    {
-        GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
-        cairo_t * const cr = gdk_cairo_create(win);
-        set_cairo_source_rgb_from_pixel(cr, gui.bgcolor->pixel);
-        cairo_rectangle(cr, 0, 0,
-                        gtk_widget_get_allocated_width(gui.drawarea),
-                        gtk_widget_get_allocated_height(gui.drawarea));
-        cairo_fill(cr);
-        cairo_destroy(cr);
-    }
+        gui_gtk_window_clear(gtk_widget_get_window(gui.drawarea));
 #else
 	gdk_window_clear(gtk_widget_get_window(gui.drawarea));
 #endif
