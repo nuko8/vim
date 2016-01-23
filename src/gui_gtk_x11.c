@@ -4135,6 +4135,34 @@ gui_mch_forked(void)
 }
 #endif /* FEAT_GUI_GNOME && FEAT_SESSION */
 
+#ifdef USE_GTK3
+    static void
+gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkRGBA *result)
+{
+    GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
+    guint32 r_mask, g_mask, b_mask;
+    gint r_shift, g_shift, b_shift;
+
+    if (visual == NULL)
+    {
+        result->red = 0.0;
+        result->green = 0.0;
+        result->blue = 0.0;
+        result->alpha = 0.0;
+        return;
+    }
+
+    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
+    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
+    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
+
+    result->red = (((pixel & r_mask) >> r_shift) << 8) / 65535.0;
+    result->green = (((pixel & g_mask) >> g_shift) << 8) / 65535.0;
+    result->blue = (((pixel & b_mask) >> b_shift) << 8) / 65535.0;
+    result->alpha = 1.0;
+}
+#endif
+
 /*
  * Called when the foreground or background color has been changed.
  * This used to change the graphics contexts directly but we are
@@ -4149,6 +4177,13 @@ gui_mch_new_colors(void)
     if (gui.drawarea != NULL && gui.drawarea->window != NULL)
 #endif
     {
+#if GTK_CHECK_VERSION(3,4,0)
+        GdkRGBA color;
+
+        gui_gtk_get_rgb_from_pixel(gui.back_pixel, &color);
+        gdk_window_set_background_rgba(gtk_widget_get_window(gui.drawarea),
+                                       &color);
+#else
 	GdkColor color = { 0, 0, 0, 0 };
 
 	color.pixel = gui.back_pixel;
@@ -4156,6 +4191,7 @@ gui_mch_new_colors(void)
 	gdk_window_set_background(gtk_widget_get_window(gui.drawarea), &color);
 #else
 	gdk_window_set_background(gui.drawarea->window, &color);
+#endif
 #endif
     }
 }
@@ -5516,39 +5552,11 @@ setup_zero_width_cluster(PangoItem *item, PangoGlyphInfo *glyph,
 	glyph->geometry.x_offset = -width + MAX(0, width - ink_rect.width) / 2;
 }
 
-#ifdef USE_GTK3
-    static void
-gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkColor *result)
-{
-    GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
-    guint32 r_mask, g_mask, b_mask;
-    gint r_shift, g_shift, b_shift;
-
-    if (visual == NULL)
-    {
-        result->pixel = 0;
-        result->red = 0;
-        result->green = 0;
-        result->blue = 0;
-        return;
-    }
-
-    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
-    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
-    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
-
-    result->pixel = pixel;
-    result->red = ((pixel & r_mask) >> r_shift) << 8;
-    result->green = ((pixel & g_mask) >> g_shift) << 8;
-    result->blue = ((pixel & b_mask) >> b_shift) << 8;
-}
-#endif
-
 #ifdef GDK_DISABLE_DEPRECATED
     static void
 set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
 {
-    GdkColor result;
+    GdkRGBA result;
 #ifdef USE_GTK3
     gui_gtk_get_rgb_from_pixel(pixel, &result);
 #else
@@ -5556,10 +5564,7 @@ set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
                              pixel,
                              &result);
 #endif
-    cairo_set_source_rgb(cr,
-                         result.red / 65535.0,
-                         result.green / 65535.0,
-                         result.blue / 65535.0);
+    cairo_set_source_rgb(cr, result.red, result.green, result.blue);
 }
 #endif
 
@@ -6994,7 +6999,13 @@ gui_mch_get_rgb(guicolor_T pixel)
 {
     GdkColor color;
 #ifdef USE_GTK3
-    gui_gtk_get_rgb_from_pixel(pixel, &color);
+    GdkRGBA rgba;
+
+    gui_gtk_get_rgb_from_pixel(pixel, &rgba);
+
+    color.red = rgba.red * 65535;
+    color.green = rgba.green * 65535;
+    color.blue = rgba.blue * 65535;
 #else
     gdk_colormap_query_color(gtk_widget_get_colormap(gui.drawarea),
 			     (unsigned long)pixel, &color);
