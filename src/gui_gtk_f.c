@@ -652,25 +652,7 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 gtk_form_draw(GtkWidget *widget,
               cairo_t   *cr)
 {
-    GList   *tmp_list;
-    GtkForm *form;
-
-    g_return_val_if_fail(GTK_IS_FORM(widget), TRUE);
-
-    form = GTK_FORM(widget);
-
-    for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
-    {
-	GtkFormChild	*formchild = tmp_list->data;
-	GtkWidget	*child	   = formchild->widget;
-
-        if (gtk_widget_is_drawable(child) && !gtk_widget_get_has_window(child))
-	{
-            gtk_container_propagate_draw(GTK_CONTAINER(form), child, cr);
-	}
-    }
-
-    return FALSE;
+    return GTK_WIDGET_CLASS(gtk_form_parent_class)->draw(widget, cr);
 }
 #else
     static gint
