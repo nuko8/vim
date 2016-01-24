@@ -22,6 +22,10 @@
  *
  * Best supporting actor (He helped somewhat, aesthetically speaking):
  * Maxime Romano <verbophobe@hotmail.com>
+ *
+ * Support for GTK+ 3 was added by:
+ *
+ * 2016  Kazunobu Kuriyama  <kazunobu.kuriyama@gmail.com>
  */
 
 #ifdef FEAT_GUI_GTK

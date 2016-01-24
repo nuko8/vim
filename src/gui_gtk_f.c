@@ -19,6 +19,10 @@
  * children at arbitrary positions width arbitrary sizes.  This finally puts
  * an end on our resize problems with which we where struggling for such a
  * long time.
+ *
+ * Support for GTK+ 3 was added by:
+ *
+ * 2016  Kazunobu Kuriyama  <kazunobu.kuriyama@gmail.com>
  */
 
 #include "vim.h"

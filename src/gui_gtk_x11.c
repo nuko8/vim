@@ -19,6 +19,10 @@
  *
  * (C) 2002,2003  Jason Hildebrand  <jason@peaceworks.ca>
  *		  Daniel Elstner  <daniel.elstner@gmx.net>
+ *
+ * Support for GTK+ 3 was added by:
+ *
+ * 2016  Kazunobu Kuriyama  <kazunobu.kuriyama@gmail.com>
  */
 
 #include "vim.h"
