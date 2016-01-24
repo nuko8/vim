@@ -5655,11 +5655,12 @@ draw_under(int flags, int row, int col, int cells)
     {
 #ifdef GDK_DISABLE_DEPRECATED
         cairo_set_line_width(cr, 1.0);
+        cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
         set_cairo_source_rgb_from_pixel(cr, gui.spcolor->pixel);
 	for (i = FILL_X(col); i < FILL_X(col + cells); ++i)
 	{
 	    offset = val[i % 8];
-	    cairo_line_to(cr, i + 0.5, y - offset + 0.5);
+	    cairo_line_to(cr, i, y - offset + 0.5);
 	}
         cairo_stroke(cr);
 #else
@@ -5683,9 +5684,10 @@ draw_under(int flags, int row, int col, int cells)
 #ifdef GDK_DISABLE_DEPRECATED
         {
             cairo_set_line_width(cr, 1.0);
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
             set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
-            cairo_move_to(cr, FILL_X(col) + 0.5, y + 0.5);
-            cairo_line_to(cr, FILL_X(col + cells) - 0.5, y + 0.5);
+            cairo_move_to(cr, FILL_X(col), y + 0.5);
+            cairo_line_to(cr, FILL_X(col + cells), y + 0.5);
             cairo_stroke(cr);
         }
 #else
@@ -6349,9 +6351,11 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
     if (mb_lefthalve(gui.row, gui.col))
 	i = 2;
 #ifdef GDK_DISABLE_DEPRECATED
+    cairo_set_line_width(cr, 1.0);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
     cairo_rectangle(cr,
                     FILL_X(gui.col) + 0.5, FILL_Y(gui.row) + 0.5,
-                    i * gui.char_width - 1 + 0.5, gui.char_height - 1 + 0.5);
+                    i * gui.char_width - 1, gui.char_height - 1);
     cairo_stroke(cr);
     cairo_destroy(cr);
 #else
