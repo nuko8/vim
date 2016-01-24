@@ -469,6 +469,7 @@ gui_mch_add_menu(vimmenu_T *menu, int idx)
     gtk_menu_set_accel_group(GTK_MENU(menu->submenu_id), gui.accel_group);
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(menu->id), menu->submenu_id);
 
+#if !GTK_CHECK_VERSION(3,4,0)
     menu->tearoff_handle = gtk_tearoff_menu_item_new();
     if (vim_strchr(p_go, GO_TEAROFF) != NULL)
 	gtk_widget_show(menu->tearoff_handle);
@@ -476,6 +477,7 @@ gui_mch_add_menu(vimmenu_T *menu, int idx)
     gtk_menu_shell_prepend(GTK_MENU_SHELL(menu->submenu_id), menu->tearoff_handle);
 #else
     gtk_menu_prepend(GTK_MENU(menu->submenu_id), menu->tearoff_handle);
+#endif
 #endif
 }
 
@@ -645,6 +647,7 @@ gui_gtk_set_mnemonics(int enable)
     }
 }
 
+#if !GTK_CHECK_VERSION(3,4,0)
     static void
 recurse_tearoffs(vimmenu_T *menu, int val)
 {
@@ -661,12 +664,21 @@ recurse_tearoffs(vimmenu_T *menu, int val)
 	recurse_tearoffs(menu->children, val);
     }
 }
+#endif
 
+#if GTK_CHECK_VERSION(3,4,0)
+    void
+gui_mch_toggle_tearoffs(int enable UNUSED)
+{
+    /* Do nothing */
+}
+#else
     void
 gui_mch_toggle_tearoffs(int enable)
 {
     recurse_tearoffs(root_menu, enable);
 }
+#endif
 #endif /* FEAT_MENU */
 
 #if defined(FEAT_TOOLBAR)
