@@ -4160,9 +4160,9 @@ gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkRGBA *result)
     gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
     gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
 
-    result->red = (((pixel & r_mask) >> r_shift) << 8) / 65535.0;
-    result->green = (((pixel & g_mask) >> g_shift) << 8) / 65535.0;
-    result->blue = (((pixel & b_mask) >> b_shift) << 8) / 65535.0;
+    result->red = ((pixel & r_mask) >> r_shift) / 255.0;
+    result->green = ((pixel & g_mask) >> g_shift) / 255.0;
+    result->blue = ((pixel & b_mask) >> b_shift) / 255.0;
     result->alpha = 1.0;
 }
 #endif
