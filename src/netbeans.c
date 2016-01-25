@@ -426,7 +426,6 @@ netbeans_parse_messages(void)
 	}
     }
 }
-
 /*
  * Handle one NUL terminated command.
  *
@@ -2530,6 +2529,62 @@ netbeans_active(void)
     return NETBEANS_OPEN;
 }
 
+#if defined(FEAT_GUI) || defined(PROTO)
+/*
+ * Register our file descriptor with the gui event handling system.
+ */
+    void
+netbeans_gui_register(void)
+{
+    if (!NB_HAS_GUI || !NETBEANS_OPEN)
+	return;
+
+# ifdef FEAT_GUI_X11
+    /* tell notifier we are interested in being called
+     * when there is input on the editor connection socket
+     */
+    if (inputHandler == (XtInputId)NULL)
+	inputHandler = XtAppAddInput((XtAppContext)app_context, nbsock,
+			 (XtPointer)(XtInputReadMask + XtInputExceptMask),
+					       messageFromNetbeans, NULL);
+# else
+#  ifdef FEAT_GUI_GTK
+    /*
+     * Tell gdk we are interested in being called when there
+     * is input on the editor connection socket
+     */
+    if (inputHandler == 0)
+#   ifdef USE_GTK3
+    {
+        GIOChannel *channel = g_io_channel_unix_new(nbsock);
+        inputHandler = g_io_add_watch(channel,
+                                      G_IO_IN|G_IO_HUP|G_IO_ERR|G_IO_PRI,
+                                      messageFromNetbeans, NULL);
+        g_io_channel_unref(channel);
+    }
+#   else
+	inputHandler = gdk_input_add((gint)nbsock, (GdkInputCondition)
+	    ((int)GDK_INPUT_READ + (int)GDK_INPUT_EXCEPTION),
+					       messageFromNetbeans, NULL);
+#   endif
+#  else
+#   ifdef FEAT_GUI_W32
+    /*
+     * Tell Windows we are interested in receiving message when there
+     * is input on the editor connection socket
+     */
+    if (inputHandler == -1)
+	inputHandler = WSAAsyncSelect(nbsock, s_hwnd, WM_NETBEANS, FD_READ);
+#   endif
+#  endif
+# endif
+
+# ifdef FEAT_BEVAL
+    bevalServers |= BEVAL_NETBEANS;
+# endif
+}
+#endif
+
 /*
  * Tell netbeans that the window was opened, ready for commands.
  */
@@ -3055,7 +3110,25 @@ netbeans_draw_multisign_indicator(int row)
     int i;
     int y;
     int x;
+#ifdef USE_GTK3
+    GdkVisual *visual = gtk_widget_get_visual(gui.drawarea);
+    guint32 r_mask, g_mask, b_mask;
+    gint r_shift, g_shift, b_shift;
+    cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+
+    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
+    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
+    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
+
+    cairo_set_source_rgb(
+        cr,
+        ((gui.fgcolor->pixel & r_mask) >> r_shift) / 255.0,
+        ((gui.fgcolor->pixel & g_mask) >> g_shift) / 255.0,
+        ((gui.fgcolor->pixel & b_mask) >> b_shift) / 255.0
+    );
+#else
     GdkDrawable *drawable = gui.drawarea->window;
+#endif
 
     if (!NETBEANS_OPEN)
 	return;
@@ -3064,8 +3137,27 @@ netbeans_draw_multisign_indicator(int row)
     y = row * gui.char_height + 2;
 
     for (i = 0; i < gui.char_height - 3; i++)
+#ifdef USE_GTK3
+    {
+        cairo_rectangle(cr, x+2, y++, 1, 1);
+    }
+#else
 	gdk_draw_point(drawable, gui.text_gc, x+2, y++);
+#endif
 
+#ifdef USE_GTK3
+    cairo_rectangle(cr, x+0, y, 1, 1);
+    cairo_rectangle(cr, x+2, y, 1, 1);
+    cairo_rectangle(cr, x+4, y++, 1, 1);
+    cairo_rectangle(cr, x+1, y, 1, 1);
+    cairo_rectangle(cr, x+2, y, 1, 1);
+    cairo_rectangle(cr, x+3, y++, 1, 1);
+    cairo_rectangle(cr, x+2, y, 1, 1);
+
+    cairo_stroke(cr);
+
+    cairo_destroy(cr);
+#else
     gdk_draw_point(drawable, gui.text_gc, x+0, y);
     gdk_draw_point(drawable, gui.text_gc, x+2, y);
     gdk_draw_point(drawable, gui.text_gc, x+4, y++);
@@ -3073,6 +3165,7 @@ netbeans_draw_multisign_indicator(int row)
     gdk_draw_point(drawable, gui.text_gc, x+2, y);
     gdk_draw_point(drawable, gui.text_gc, x+3, y++);
     gdk_draw_point(drawable, gui.text_gc, x+2, y);
+#endif
 }
 #endif /* FEAT_GUI_GTK */
 
