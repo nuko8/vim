@@ -715,11 +715,33 @@ timeout_cb(gpointer data)
 
 #ifdef USE_GTK3
     static gboolean
-balloon_draw_event_cb(GtkWidget *widget UNUSED,
-                      cairo_t   *cr UNUSED,
+balloon_draw_event_cb(GtkWidget *widget,
+                      cairo_t   *cr,
                       gpointer   data UNUSED)
 {
-    return TRUE;;
+    GtkStyleContext *context = NULL;
+    gint width = -1, height = -1;
+
+    if (widget == NULL)
+        return TRUE;
+
+    context = gtk_widget_get_style_context(widget);
+    width = gtk_widget_get_allocated_width(widget);
+    height = gtk_widget_get_allocated_height(widget);
+
+    gtk_style_context_save(context);
+
+    gtk_style_context_add_class(context, "tooltip");
+    gtk_style_context_set_state(context, GTK_STATE_FLAG_NORMAL);
+
+    cairo_save(cr);
+    gtk_render_frame(context, cr, 0, 0, width, height);
+    gtk_render_background(context, cr, 0, 0, width, height);
+    cairo_restore(cr);
+
+    gtk_style_context_restore(context);
+
+    return FALSE;
 }
 #else
     static gint
@@ -728,7 +750,8 @@ balloon_expose_event_cb(GtkWidget *widget,
 			gpointer data UNUSED)
 {
 #ifdef GSEAL_ENABLE
-    gtk_paint_flat_box(gtk_widget_get_style(widget), gtk_widget_get_window(widget),
+    gtk_paint_flat_box(gtk_widget_get_style(widget),
+                       gtk_widget_get_window(widget),
 		       GTK_STATE_NORMAL, GTK_SHADOW_OUT,
 		       &event->area, widget, "tooltip",
 		       0, 0, -1, -1);
