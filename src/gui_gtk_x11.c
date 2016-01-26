@@ -3848,7 +3848,7 @@ gui_mch_init(void)
 	/* Add the first tab. */
 #if GTK_CHECK_VERSION(3,2,0)
         page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-        gtk_box_set_homogeneous(GTK_BOX(vbox), FALSE);
+        gtk_box_set_homogeneous(GTK_BOX(page), FALSE);
 #else
 	page = gtk_vbox_new(FALSE, 0);
 #endif
