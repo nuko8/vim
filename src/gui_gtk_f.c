@@ -99,8 +99,10 @@ static GdkFilterReturn gtk_form_main_filter(GdkXEvent *gdk_xevent,
 					    GdkEvent *event,
 					    gpointer data);
 
+#if !GTK_CHECK_VERSION(3,16,0)
 static void gtk_form_set_static_gravity(GdkWindow *window,
 					gboolean use_static);
+#endif
 
 static void gtk_form_send_configure(GtkForm *form);
 
@@ -166,7 +168,9 @@ gtk_form_put(GtkForm	*form,
 	gtk_form_attach_child_window(form, child);
 
     gtk_widget_set_parent(child_widget, GTK_WIDGET(form));
+#ifndef USE_GTK3
     gtk_widget_size_request(child->widget, NULL);
+#endif
 
 #ifdef GTK_DISABLE_DEPRECATED
     if (gtk_widget_get_realized(GTK_WIDGET(form)) && !gtk_widget_get_realized(child_widget))
@@ -376,7 +380,9 @@ gtk_form_realize(GtkWidget *widget)
 #endif
     gdk_window_set_user_data(form->bin_window, widget);
 
+#if !GTK_CHECK_VERSION(3,16,0)
     gtk_form_set_static_gravity(form->bin_window, TRUE);
+#endif
 
 #ifdef GSEAL_ENABLE
 #ifndef USE_GTK3
@@ -536,12 +542,14 @@ gtk_form_size_request(GtkWidget *widget, GtkRequisition *requisition)
 
     tmp_list = form->children;
 
+#ifndef USE_GTK3
     while (tmp_list)
     {
 	GtkFormChild *child = tmp_list->data;
 	gtk_widget_size_request(child->widget, NULL);
 	tmp_list = tmp_list->next;
     }
+#endif
 }
 
 #ifdef USE_GTK3
@@ -653,8 +661,7 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 
 #ifdef USE_GTK3
     static gboolean
-gtk_form_draw(GtkWidget *widget,
-              cairo_t   *cr)
+gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 {
     return GTK_WIDGET_CLASS(gtk_form_parent_class)->draw(widget, cr);
 }
@@ -815,7 +822,11 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
         {
             GtkRequisition requisition;
 
+#ifdef USE_GTK3
+            gtk_widget_get_preferred_size(child->widget, &requisition, NULL);
+#else
             gtk_widget_size_request(child->widget, &requisition);
+#endif
 
             attributes.width = requisition.width;
             attributes.height = requisition.height;
@@ -853,7 +864,9 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 #endif
 
 	gtk_widget_set_parent_window(child->widget, child->window);
+#if !GTK_CHECK_VERSION(3,16,0)
 	gtk_form_set_static_gravity(child->window, TRUE);
+#endif
 	/*
 	 * Install signal handlers to map/unmap child->window
 	 * alongside with the actual widget.
@@ -886,11 +899,13 @@ gtk_form_realize_child(GtkForm *form, GtkFormChild *child)
     gtk_form_attach_child_window(form, child);
     gtk_widget_realize(child->widget);
 
+#if !GTK_CHECK_VERSION(3,16,0)
     if (child->window == NULL) /* might be already set, see above */
 #ifdef GSEAL_ENABLE
-	gtk_form_set_static_gravity(gtk_widget_get_window(child->widget), TRUE);
+        gtk_form_set_static_gravity(gtk_widget_get_window(child->widget), TRUE);
 #else
 	gtk_form_set_static_gravity(child->widget->window, TRUE);
+#endif
 #endif
 }
 
@@ -933,7 +948,11 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 #ifdef GSEAL_ENABLE
             GtkRequisition requisition;
 
+#ifdef USE_GTK3
+            gtk_widget_get_preferred_size(child->widget, &requisition, NULL);
+#else
             gtk_widget_size_request(child->widget, &requisition);
+#endif
 #endif
 
 #ifdef GTK_DISABLE_DEPRECATED
@@ -1080,6 +1099,7 @@ gtk_form_main_filter(GdkXEvent *gdk_xevent,
     return GDK_FILTER_CONTINUE;
 }
 
+#if !GTK_CHECK_VERSION(3,16,0)
     static void
 gtk_form_set_static_gravity(GdkWindow *window, gboolean use_static)
 {
@@ -1087,6 +1107,7 @@ gtk_form_set_static_gravity(GdkWindow *window, gboolean use_static)
      * results in an annoying assertion error message. */
     gdk_window_set_static_gravities(window, use_static);
 }
+#endif
 
     void
 gtk_form_move_resize(GtkForm *form, GtkWidget *widget,
