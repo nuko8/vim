@@ -343,8 +343,8 @@ gtk_form_realize(GtkWidget *widget)
     attributes.visual = gtk_widget_get_visual(widget);
 #ifndef USE_GTK3
     attributes.colormap = gtk_widget_get_colormap(widget);
-#endif
     attributes.event_mask = GDK_VISIBILITY_NOTIFY_MASK;
+#endif
 
 #ifdef USE_GTK3
     attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;

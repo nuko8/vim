@@ -3893,7 +3893,9 @@ gui_mch_init(void)
 #else
     gtk_container_border_width(GTK_CONTAINER(gui.formwin), 0);
 #endif
+#ifndef USE_GTK3
     gtk_widget_set_events(gui.formwin, GDK_EXPOSURE_MASK);
+#endif
 
     gui.drawarea = gtk_drawing_area_new();
 
