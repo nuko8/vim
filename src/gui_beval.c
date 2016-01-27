@@ -555,7 +555,17 @@ target_event_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
 		 * the coordinates from the GdkEventMotion struct directly.
 		 */
 #ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
+                {
+                    GdkWindow * const win = gtk_widget_get_window(widget);
+                    GdkDisplay * const dpy = gdk_window_get_display(win);
+                    GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
+                    GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
+                    gdk_window_get_device_position(win, dev , &x, &y, &state);
+                }
+#else
 		gdk_window_get_pointer(gtk_widget_get_window(widget), &x, &y, &state);
+#endif
 #else
 		gdk_window_get_pointer(widget->window, &x, &y, &state);
 #endif
@@ -1202,7 +1212,11 @@ drawBalloon(BalloonEval *beval)
 				    MAX(20, screen_w - 20)));
 
 	/* Calculate the balloon's width and height. */
+#if GTK_CHECK_VERSION(3,0,0)
+        gtk_widget_get_preferred_size(beval->balloonShell, &requisition, NULL);
+#else
 	gtk_widget_size_request(beval->balloonShell, &requisition);
+#endif
 
 	/* Compute position of the balloon area */
 #ifdef GSEAL_ENABLE
@@ -1299,7 +1313,18 @@ createBalloonEvalWindow(BalloonEval *beval)
 
     gtk_label_set_line_wrap(GTK_LABEL(beval->balloonLabel), FALSE);
     gtk_label_set_justify(GTK_LABEL(beval->balloonLabel), GTK_JUSTIFY_LEFT);
+#if GTK_CHECK_VERSION(3,16,0)
+    gtk_label_set_xalign(GTK_LABEL(beval->balloonLabel), 0.5);
+    gtk_label_set_yalign(GTK_LABEL(beval->balloonLabel), 0.5);
+#elif GTK_CHECK_VERSION(3,14,0)
+    GValue align_val = G_VALUE_INIT;
+    g_value_init(&align_val, G_TYPE_FLOAT);
+    g_value_set_float(&align_val, 0.5);
+    g_object_set_property(G_OBJECT(beval->balloonLabel), "xalign", &align_val);
+    g_object_set_property(G_OBJECT(beval->balloonLabel), "yalign", &align_val);
+#else
     gtk_misc_set_alignment(GTK_MISC(beval->balloonLabel), 0.5f, 0.5f);
+#endif
     gtk_widget_set_name(beval->balloonLabel, "vim-balloon-label");
     gtk_widget_show(beval->balloonLabel);
 

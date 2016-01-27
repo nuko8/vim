@@ -1727,6 +1727,18 @@ process_motion_notify(int x, int y, GdkModifierType state)
     }
 }
 
+#if GTK_CHECK_VERSION(3,0,0)
+    static GdkWindow *
+gui_gtk_get_pointer(GtkWidget *widget, gint *x, gint *y, GdkModifierType *state)
+{
+    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+    GdkDisplay * const dpy = gdk_window_get_display(win);
+    GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
+    GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
+    return gdk_window_get_device_position(win, dev , x, y, NULL);
+}
+#endif
+
 /*
  * Timer used to recognize multiple clicks of the mouse button.
  */
@@ -1742,7 +1754,11 @@ motion_repeat_timer_cb(gpointer data UNUSED)
     GdkModifierType state;
 
 #ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
+    gui_gtk_get_pointer(gui.drawarea, &x, &y, &state);
+#else
     gdk_window_get_pointer(gtk_widget_get_window(gui.drawarea), &x, &y, &state);
+#endif
 #else
     gdk_window_get_pointer(gui.drawarea->window, &x, &y, &state);
 #endif
@@ -1791,7 +1807,11 @@ motion_notify_event(GtkWidget *widget,
 	GdkModifierType	state;
 
 #ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
+        gui_gtk_get_pointer(widget, &x, &y, &state);
+#else
 	gdk_window_get_pointer(gtk_widget_get_window(widget), &x, &y, &state);
+#endif
 #else
 	gdk_window_get_pointer(widget->window, &x, &y, &state);
 #endif
@@ -2174,7 +2194,11 @@ drag_data_received_cb(GtkWidget		*widget,
     /* Get the current modifier state for proper distinguishment between
      * different operations later. */
 #ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
+    gui_gtk_get_pointer(widget, NULL, NULL, &state);
+#else
     gdk_window_get_pointer(gtk_widget_get_window(widget), NULL, NULL, &state);
+#endif
 #else
     gdk_window_get_pointer(widget->window, NULL, NULL, &state);
 #endif
@@ -2721,7 +2745,13 @@ create_blank_pointer(void)
 #endif
 
 #ifdef HAVE_GTK_MULTIHEAD
+#if GTK_CHECK_VERSION(3,12,0)
+    GdkWindow * const win = gtk_widget_get_window(gui.mainwin);
+    GdkScreen * const scrn = gdk_window_get_screen(win);
+    root_window = gdk_screen_get_root_window(scrn);
+#else
     root_window = gtk_widget_get_root_window(gui.mainwin);
+#endif
 #endif
 
     /* Create a pseudo blank pointer, which is in fact one pixel by one pixel
@@ -2789,7 +2819,11 @@ mainwin_screen_changed_cb(GtkWidget  *widget,
      * Recreate the invisible mouse cursor.
      */
     if (gui.blank_pointer != NULL)
+#if GTK_CHECK_VERSION(3,0,0)
+        g_object_unref(G_OBJECT(gui.blank_pointer));
+#else
 	gdk_cursor_unref(gui.blank_pointer);
+#endif
 
     gui.blank_pointer = create_blank_pointer();
 
@@ -2919,7 +2953,11 @@ drawarea_unrealize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
     gui.text_gc = NULL;
 #endif
 
+#if GTK_CHECK_VERSION(3,0,0)
+    g_object_unref(G_OBJECT(gui.blank_pointer));
+#else
     gdk_cursor_unref(gui.blank_pointer);
+#endif
     gui.blank_pointer = NULL;
 }
 
@@ -3302,7 +3340,18 @@ on_tabline_menu(GtkWidget *widget, GdkEvent *event)
 	   )
 	    return TRUE;
 
+#if GTK_CHECK_VERSION(3,0,0)
+        {
+            GdkWindow * const win = gtk_widget_get_window(gui.mainwin);
+            GdkDisplay * const dpy = gdk_window_get_display(win);
+            GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
+            GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
+            tabwin = gdk_device_get_window_at_position(dev, &x, &y);
+        }
+#else
 	tabwin = gdk_window_at_pointer(&x, &y);
+#endif
+
 	gdk_window_get_user_data(tabwin, (gpointer)&tabwidget);
 #ifdef GTK_DISABLE_DEPRECATED
 	clicked_page = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(tabwidget),
@@ -3432,7 +3481,9 @@ gui_mch_update_tabline(void)
 	    event_box = gtk_event_box_new();
 	    gtk_widget_show(event_box);
 	    label = gtk_label_new("-Empty-");
+#if !GTK_CHECK_VERSION(3,14,0)
 	    gtk_misc_set_padding(GTK_MISC(label), 2, 2);
+#endif
 	    gtk_container_add(GTK_CONTAINER(event_box), label);
 	    gtk_widget_show(label);
 	    gtk_notebook_insert_page(GTK_NOTEBOOK(gui.tabline),
@@ -3863,7 +3914,9 @@ gui_mch_init(void)
 #else
 	gtk_object_set_user_data(GTK_OBJECT(event_box), (gpointer)1L);
 #endif
+#if !GTK_CHECK_VERSION(3,14,0)
 	gtk_misc_set_padding(GTK_MISC(label), 2, 2);
+#endif
 	gtk_container_add(GTK_CONTAINER(event_box), label);
 	gtk_notebook_set_tab_label(GTK_NOTEBOOK(gui.tabline), page, event_box);
     }
@@ -7013,7 +7066,11 @@ gui_mch_get_rgb(guicolor_T pixel)
 gui_mch_getmouse(int *x, int *y)
 {
 #ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
+    gui_gtk_get_pointer(gui.drawarea, x, y, NULL);
+#else
     gdk_window_get_pointer(gtk_widget_get_window(gui.drawarea), x, y, NULL);
+#endif
 #else
     gdk_window_get_pointer(gui.drawarea->window, x, y, NULL);
 #endif
@@ -7152,7 +7209,11 @@ mch_set_mouse_shape(int shape)
 	gdk_window_set_cursor(gui.drawarea->window, c);
 #endif
 #ifdef GDK_DISABLE_DEPRECATED
+#if GTK_CHECK_VERSION(3,0,0)
+        g_object_unref(G_OBJECT(c));
+#else
         gdk_cursor_unref(c);
+#endif
 #else
 	gdk_cursor_destroy(c); /* Unref, actually.  Bloody GTK+ 1. */
 #endif

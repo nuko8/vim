@@ -106,6 +106,12 @@ static void recent_func_log_func(
 	gpointer user_data);
 #endif
 
+/* Suspend "deprecated-declarations" warnings in favor of stock icons */
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #if defined(FEAT_TOOLBAR)
 /*
  * Table from BuiltIn## icon indices to GTK+ stock IDs.  Order must exactly
@@ -345,6 +351,10 @@ gui_gtk_register_stock_icons(void)
 
 #endif /* FEAT_TOOLBAR */
 
+/* Resume "deprecated-declarations" warnings */
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #if defined(FEAT_MENU) || defined(PROTO)
 
@@ -416,7 +426,12 @@ menu_item_new(vimmenu_T *menu, GtkWidget *parent_widget)
      * changes to Vim's menu system.  Not to mention that all the translations
      * had to be updated. */
     menu->id = gtk_menu_item_new();
+#if GTK_CHECK_VERSION(3,2,0)
+    box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20);
+    gtk_box_set_homogeneous(GTK_BOX(box), FALSE);
+#else
     box = gtk_hbox_new(FALSE, 20);
+#endif
 
     use_mnemonic = (p_wak[0] != 'n' || !GTK_IS_MENU_BAR(parent_widget));
     text = translate_mnemonic_tag(menu->name, use_mnemonic);
@@ -812,7 +827,9 @@ gui_mch_set_scrollbar_thumb(scrollbar_T *sb, long val, long size, long max)
 
 	g_signal_handler_block(G_OBJECT(adjustment),
 						      (gulong)sb->handler_id);
+#if !GTK_CHECK_VERSION(3,18,0)
 	gtk_adjustment_changed(adjustment);
+#endif
 	g_signal_handler_unblock(G_OBJECT(adjustment),
 						      (gulong)sb->handler_id);
     }
@@ -871,7 +888,17 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 	    /* vertical scrollbar: need to set "dragging" properly in case
 	     * there are closed folds. */
 #ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
+            {
+                GdkWindow * const win = gtk_widget_get_window(sb->id);
+                GdkDisplay * const dpy = gdk_window_get_display(win);
+                GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
+                GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
+                gdk_window_get_device_position(win, dev , &x, &y, &state);
+            }
+#else
 	    gdk_window_get_pointer(gtk_widget_get_window(sb->id), &x, &y, &state);
+#endif
 #else
 	    gdk_window_get_pointer(sb->id->window, &x, &y, &state);
 #endif
@@ -912,9 +939,17 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 gui_mch_create_scrollbar(scrollbar_T *sb, int orient)
 {
     if (orient == SBAR_HORIZ)
+#if GTK_CHECK_VERSION(3,2,0)
+        sb->id = gtk_scrollbar_new(GTK_ORIENTATION_HORIZONTAL, NULL);
+#else
 	sb->id = gtk_hscrollbar_new(NULL);
+#endif
     else if (orient == SBAR_VERT)
+#if GTK_CHECK_VERSION(3,2,0)
+        sb->id = gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, NULL);
+#else
 	sb->id = gtk_vscrollbar_new(NULL);
+#endif
 
     if (sb->id != NULL)
     {
@@ -1049,6 +1084,15 @@ gui_mch_browse(int saving UNUSED,
 #ifdef USE_FILE_CHOOSER
     /* We create the dialog each time, so that the button text can be "Open"
      * or "Save" according to the action. */
+#if GTK_CHECK_VERSION(3,10,0)
+    fc = gtk_file_chooser_dialog_new((const gchar *)title,
+	    GTK_WINDOW(gui.mainwin),
+	    saving ? GTK_FILE_CHOOSER_ACTION_SAVE
+					   : GTK_FILE_CHOOSER_ACTION_OPEN,
+	    _("_Cancel"), GTK_RESPONSE_CANCEL,
+	    saving ? _("_Save") : _("_Open"), GTK_RESPONSE_ACCEPT,
+	    NULL);
+#else
     fc = gtk_file_chooser_dialog_new((const gchar *)title,
 	    GTK_WINDOW(gui.mainwin),
 	    saving ? GTK_FILE_CHOOSER_ACTION_SAVE
@@ -1056,6 +1100,7 @@ gui_mch_browse(int saving UNUSED,
 	    GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 	    saving ? GTK_STOCK_SAVE : GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
 	    NULL);
+#endif
     gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(fc),
 						       (const gchar *)dirbuf);
 
@@ -1179,6 +1224,15 @@ gui_mch_browsedir(
 
     title = CONVERT_TO_UTF8(title);
 
+#if GTK_CHECK_VERSION(3,10,0)
+    dirdlg = gtk_file_chooser_dialog_new(
+	    (const gchar *)title,
+	    GTK_WINDOW(gui.mainwin),
+	    GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+	    _("_Cancel"), GTK_RESPONSE_CANCEL,
+	    _("_OK"), GTK_RESPONSE_ACCEPT,
+	    NULL);
+#else
     dirdlg = gtk_file_chooser_dialog_new(
 	    (const gchar *)title,
 	    GTK_WINDOW(gui.mainwin),
@@ -1186,6 +1240,7 @@ gui_mch_browsedir(
 	    GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 	    GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
 	    NULL);
+#endif
 
     CONVERT_TO_UTF8_FREE(title);
 
@@ -1433,6 +1488,16 @@ dialog_add_buttons(GtkDialog *dialog, char_u *button_string)
 	 */
 	if (ok != NULL && ync != NULL) /* almost impossible to fail */
 	{
+#if GTK_CHECK_VERSION(3,10,0)
+	    if	    (button_equal(label, ok[0]))    label = _("OK");
+	    else if (button_equal(label, ync[0]))   label = _("Yes");
+	    else if (button_equal(label, ync[1]))   label = _("No");
+	    else if (button_equal(label, ync[2]))   label = _("Cancel");
+	    else if (button_equal(label, "Ok"))     label = _("OK");
+	    else if (button_equal(label, "Yes"))    label = _("Yes");
+	    else if (button_equal(label, "No"))     label = _("No");
+	    else if (button_equal(label, "Cancel")) label = _("Canccl");
+#else
 	    if	    (button_equal(label, ok[0]))    label = GTK_STOCK_OK;
 	    else if (button_equal(label, ync[0]))   label = GTK_STOCK_YES;
 	    else if (button_equal(label, ync[1]))   label = GTK_STOCK_NO;
@@ -1441,6 +1506,7 @@ dialog_add_buttons(GtkDialog *dialog, char_u *button_string)
 	    else if (button_equal(label, "Yes"))    label = GTK_STOCK_YES;
 	    else if (button_equal(label, "No"))     label = GTK_STOCK_NO;
 	    else if (button_equal(label, "Cancel")) label = GTK_STOCK_CANCEL;
+#endif
 	}
 	label8 = CONVERT_TO_UTF8((char_u *)label);
 	gtk_dialog_add_button(dialog, (const gchar *)label8, idx);
@@ -1533,8 +1599,17 @@ gui_mch_dialog(int	type,	    /* type of dialog */
 	gtk_entry_set_text(GTK_ENTRY(entry), (const char *)text);
 	CONVERT_TO_UTF8_FREE(text);
 
+#if GTK_CHECK_VERSION(3,14,0)
+        gtk_widget_set_halign(GTK_WIDGET(entry), GTK_ALIGN_CENTER);
+        gtk_widget_set_valign(GTK_WIDGET(entry), GTK_ALIGN_CENTER);
+        gtk_widget_set_hexpand(GTK_WIDGET(entry), TRUE);
+        gtk_widget_set_vexpand(GTK_WIDGET(entry), TRUE);
+
+        alignment = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+#else
 	alignment = gtk_alignment_new((float)0.5, (float)0.5,
 						      (float)1.0, (float)1.0);
+#endif
 	gtk_container_add(GTK_CONTAINER(alignment), entry);
 	gtk_container_set_border_width(GTK_CONTAINER(alignment), 5);
 	gtk_widget_show(alignment);
@@ -1603,6 +1678,7 @@ gui_mch_show_popupmenu(vimmenu_T *menu)
      * Append a submenu for selecting an input method.	This is
      * currently the only way to switch input methods at runtime.
      */
+#if !GTK_CHECK_VERSION(3,10,0)
     if (xic != NULL && g_object_get_data(G_OBJECT(menu->submenu_id),
 					 "vim-has-im-menu") == NULL)
     {
@@ -1629,6 +1705,7 @@ gui_mch_show_popupmenu(vimmenu_T *menu)
 	g_object_set_data(G_OBJECT(menu->submenu_id),
 			  "vim-has-im-menu", GINT_TO_POINTER(TRUE));
     }
+#endif
 # endif /* FEAT_XIM */
 
     gtk_menu_popup(GTK_MENU(menu->submenu_id),
@@ -1760,18 +1837,35 @@ create_image_button(const char *stock_id, const char *label)
 
     text = CONVERT_TO_UTF8((char_u *)label);
 
+#if GTK_CHECK_VERSION(3,2,0)
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+    gtk_box_set_homogeneous(GTK_BOX(box), FALSE);
+#else
     box = gtk_hbox_new(FALSE, 3);
-    gtk_box_pack_start(GTK_BOX(box),
-		       gtk_image_new_from_stock(stock_id, GTK_ICON_SIZE_BUTTON),
-		       FALSE, FALSE, 0);
+#endif
+#if !GTK_CHECK_VERSION(3,10,0)
+    if (stock_id != NULL)
+        gtk_box_pack_start(GTK_BOX(box),
+                           gtk_image_new_from_stock(stock_id, GTK_ICON_SIZE_BUTTON),
+                           FALSE, FALSE, 0);
+#endif
     gtk_box_pack_start(GTK_BOX(box),
 		       gtk_label_new((const char *)text),
 		       FALSE, FALSE, 0);
 
     CONVERT_TO_UTF8_FREE(text);
 
+#if GTK_CHECK_VERSION(3,14,0)
+    gtk_widget_set_halign(GTK_WIDGET(box), GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(GTK_WIDGET(box), GTK_ALIGN_CENTER);
+    gtk_widget_set_hexpand(GTK_WIDGET(box), TRUE);
+    gtk_widget_set_vexpand(GTK_WIDGET(box), TRUE);
+
+    alignment = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+#else
     alignment = gtk_alignment_new((float)0.5, (float)0.5,
 						      (float)0.0, (float)0.0);
+#endif
     gtk_container_add(GTK_CONTAINER(alignment), box);
     gtk_widget_show_all(alignment);
 
@@ -1871,7 +1965,12 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 			     CONV(_("VIM - Search...")));
     }
 
+#if GTK_CHECK_VERSION(3,2,0)
+    hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_box_set_homogeneous(GTK_BOX(hbox), FALSE);
+#else
     hbox = gtk_hbox_new(FALSE, 0);
+#endif
     gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
 #ifdef GSEAL_ENABLE
     gtk_container_add(
@@ -1882,9 +1981,17 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 #endif
 
     if (do_replace)
+#if GTK_CHECK_VERSION(3,4,0)
+        table = gtk_grid_new();
+#else
 	table = gtk_table_new(1024, 4, FALSE);
+#endif
     else
+#if GTK_CHECK_VERSION(3,4,0)
+        table = gtk_grid_new();
+#else
 	table = gtk_table_new(1024, 3, FALSE);
+#endif
     gtk_box_pack_start(GTK_BOX(hbox), table, TRUE, TRUE, 0);
 #ifdef GTK_DISABLE_DEPRECATED
     gtk_container_set_border_width(GTK_CONTAINER(table), 4);
@@ -1893,9 +2000,24 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 #endif
 
     tmp = gtk_label_new(CONV(_("Find what:")));
+#if GTK_CHECK_VERSION(3,16,0)
+    gtk_label_set_xalign(GTK_LABEL(tmp), 0.0);
+    gtk_label_set_yalign(GTK_LABEL(tmp), 0.5);
+#elif GTK_CHECK_VERSION(3,14,0)
+    GValue align_val = G_VALUE_INIT;
+    g_value_init(&align_val, G_TYPE_FLOAT);
+    g_value_set_float(&align_val, 0.0);
+    g_object_set_property(G_OBJECT(tmp), "xalign_val", &align);
+    g_object_set_property(G_OBJECT(tmp), "yalign_val", &align);
+#else
     gtk_misc_set_alignment(GTK_MISC(tmp), (gfloat)0.0, (gfloat)0.5);
+#endif
+#if GTK_CHECK_VERSION(3,4,0)
+    gtk_grid_attach(GTK_GRID(table), tmp, 0, 0, 2, 1);
+#else
     gtk_table_attach(GTK_TABLE(table), tmp, 0, 1, 0, 1,
 		     GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
     frdp->what = gtk_entry_new();
     sensitive = (entry_text != NULL && entry_text[0] != NUL);
     if (entry_text != NULL)
@@ -1913,15 +2035,37 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 				 GTK_SIGNAL_FUNC(find_key_press_event),
 				 (gpointer) frdp);
 #endif
+#if GTK_CHECK_VERSION(3,4,0)
+    gtk_grid_attach(GTK_GRID(table), frdp->what, 2, 0, 5, 1);
+#else
     gtk_table_attach(GTK_TABLE(table), frdp->what, 1, 1024, 0, 1,
 		     GTK_EXPAND | GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
 
     if (do_replace)
     {
 	tmp = gtk_label_new(CONV(_("Replace with:")));
-	gtk_misc_set_alignment(GTK_MISC(tmp), (gfloat)0.0, (gfloat)0.5);
+#if GTK_CHECK_VERSION(3,16,0)
+        gtk_label_set_xalign(GTK_LABEL(tmp), 0.0);
+        gtk_label_set_yalign(GTK_LABEL(tmp), 0.5);
+#elif GTK_CHECK_VERSION(3,14,0)
+        GValue xalign = G_VALUE_INIT;
+        GValue yalign = G_VALUE_INIT;
+        g_value_init(&xalign, G_TYPE_FLOAT);
+        g_value_init(&yalign, G_TYPE_FLOAT);
+        g_value_set_float(&xalign, 0.0);
+        g_value_set_float(&yalign, 0.5);
+        g_object_set_property(G_OBJECT(tmp), "xalign", &xalign);
+        g_object_set_property(G_OBJECT(tmp), "yalign", &yalign);
+#else
+        gtk_misc_set_alignment(GTK_MISC(tmp), (gfloat)0.0, (gfloat)0.5);
+#endif
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), tmp, 0, 1, 2, 1);
+#else
 	gtk_table_attach(GTK_TABLE(table), tmp, 0, 1, 1, 2,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
 	frdp->with = gtk_entry_new();
 #ifdef GTK_DISABLE_DEPRECATED
 	g_signal_connect(G_OBJECT(frdp->with), "activate",
@@ -1938,8 +2082,12 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 				 GTK_SIGNAL_FUNC(find_key_press_event),
 				 (gpointer) frdp);
 #endif
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), frdp->with, 2, 1, 5, 1);
+#else
 	gtk_table_attach(GTK_TABLE(table), frdp->with, 1, 1024, 1, 2,
 			 GTK_EXPAND | GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
 
 	/*
 	 * Make the entry activation only change the input focus onto the
@@ -1979,11 +2127,19 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 							(gboolean)wword);
 #endif
     if (do_replace)
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), frdp->wword, 0, 2, 5, 1);
+#else
 	gtk_table_attach(GTK_TABLE(table), frdp->wword, 0, 1023, 2, 3,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
     else
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), frdp->wword, 0, 3, 5, 1);
+#else
 	gtk_table_attach(GTK_TABLE(table), frdp->wword, 0, 1023, 1, 2,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
 
     /* match case button */
     frdp->mcase = gtk_check_button_new_with_label(CONV(_("Match case")));
@@ -1995,20 +2151,41 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 							     (gboolean)mcase);
 #endif
     if (do_replace)
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), frdp->mcase, 0, 3, 5, 1);
+#else
 	gtk_table_attach(GTK_TABLE(table), frdp->mcase, 0, 1023, 3, 4,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
     else
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), frdp->mcase, 0, 4, 5, 1);
+#else
 	gtk_table_attach(GTK_TABLE(table), frdp->mcase, 0, 1023, 2, 3,
 			 GTK_FILL, GTK_EXPAND, 2, 2);
+#endif
 
     tmp = gtk_frame_new(CONV(_("Direction")));
     if (do_replace)
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), tmp, 5, 2, 2, 4);
+#else
 	gtk_table_attach(GTK_TABLE(table), tmp, 1023, 1024, 2, 4,
 			 GTK_FILL, GTK_FILL, 2, 2);
+#endif
     else
+#if GTK_CHECK_VERSION(3,4,0)
+        gtk_grid_attach(GTK_GRID(table), tmp, 5, 2, 1, 3);
+#else
 	gtk_table_attach(GTK_TABLE(table), tmp, 1023, 1024, 1, 3,
 			 GTK_FILL, GTK_FILL, 2, 2);
+#endif
+#if GTK_CHECK_VERSION(3,2,0)
+    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_set_homogeneous(GTK_BOX(vbox), FALSE);
+#else
     vbox = gtk_vbox_new(FALSE, 0);
+#endif
 #ifdef GTK_DISABLE_DEPRECATED
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 0);
 #else
@@ -2037,7 +2214,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     gtk_box_pack_start(GTK_BOX(vbox), frdp->down, TRUE, TRUE, 0);
 
     /* vbox to hold the action buttons */
+#if GTK_CHECK_VERSION(3,2,0)
+    actionarea = gtk_button_box_new(GTK_ORIENTATION_VERTICAL);
+#else
     actionarea = gtk_vbutton_box_new();
+#endif
 #ifdef GTK_DISABLE_DEPRECATED
     gtk_container_set_border_width(GTK_CONTAINER(actionarea), 2);
 #else
@@ -2046,7 +2227,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     gtk_box_pack_end(GTK_BOX(hbox), actionarea, FALSE, FALSE, 0);
 
     /* 'Find Next' button */
+#if GTK_CHECK_VERSION(3,10,0)
+    frdp->find = create_image_button(NULL, _("Find Next"));
+#else
     frdp->find = create_image_button(GTK_STOCK_FIND, _("Find Next"));
+#endif
     gtk_widget_set_sensitive(frdp->find, sensitive);
 
 #ifdef GTK_DISABLE_DEPRECATED
@@ -2072,7 +2257,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     if (do_replace)
     {
 	/* 'Replace' button */
+#if GTK_CHECK_VERSION(3,10,0)
+	frdp->replace = create_image_button(NULL, _("Replace"));
+#else
 	frdp->replace = create_image_button(GTK_STOCK_CONVERT, _("Replace"));
+#endif
 	gtk_widget_set_sensitive(frdp->replace, sensitive);
 #ifdef GTK_DISABLE_DEPRECATED
         gtk_widget_set_can_default(frdp->find, TRUE);
@@ -2091,7 +2280,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 #endif
 
 	/* 'Replace All' button */
+#if GTK_CHECK_VERSION(3,10,0)
+	frdp->all = create_image_button(NULL, _("Replace All"));
+#else
 	frdp->all = create_image_button(GTK_STOCK_CONVERT, _("Replace All"));
+#endif
 	gtk_widget_set_sensitive(frdp->all, sensitive);
 #ifdef GTK_DISABLE_DEPRECATED
         gtk_widget_set_can_default(frdp->all, TRUE);
@@ -2111,7 +2304,11 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     }
 
     /* 'Cancel' button */
+#if GTK_CHECK_VERSION(3,10,0)
+    tmp = gtk_button_new_with_mnemonic(_("_Close"));
+#else
     tmp = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+#endif
 #ifdef GTK_DISABLE_DEPRECATED
     gtk_widget_set_can_default(tmp, TRUE);
 #else
@@ -2134,12 +2331,18 @@ find_replace_dialog_create(char_u *arg, int do_replace)
 			      GTK_OBJECT(frdp->dialog));
 #endif
 
+#if GTK_CHECK_VERSION(3,2,0)
+    tmp = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+#else
     tmp = gtk_vseparator_new();
+#endif
     gtk_box_pack_end(GTK_BOX(hbox), tmp, FALSE, FALSE, 10);
 
     /* Suppress automatic show of the unused action area */
 #ifdef GSEAL_ENABLE
+#if !GTK_CHECK_VERSION(3,12,0)
     gtk_widget_hide(gtk_dialog_get_action_area(GTK_DIALOG(frdp->dialog)));
+#endif
 #else
     gtk_widget_hide(GTK_DIALOG(frdp->dialog)->action_area);
 #endif
