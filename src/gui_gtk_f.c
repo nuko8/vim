@@ -92,12 +92,14 @@ static void gtk_form_position_child(GtkForm *form,
 				    gboolean force_allocate);
 static void gtk_form_position_children(GtkForm *form);
 
+#ifndef USE_GTK3
 static GdkFilterReturn gtk_form_filter(GdkXEvent *gdk_xevent,
 				       GdkEvent *event,
 				       gpointer data);
 static GdkFilterReturn gtk_form_main_filter(GdkXEvent *gdk_xevent,
 					    GdkEvent *event,
 					    gpointer data);
+#endif
 
 #if !GTK_CHECK_VERSION(3,16,0)
 static void gtk_form_set_static_gravity(GdkWindow *window,
@@ -300,8 +302,10 @@ gtk_form_init(GtkForm *form)
 
     form->bin_window = NULL;
 
+#ifndef USE_GTK3
     form->configure_serial = 0;
     form->visibility = GDK_VISIBILITY_PARTIAL;
+#endif
 
     form->freeze_count = 0;
 }
@@ -402,12 +406,14 @@ gtk_form_realize(GtkWidget *widget)
     gtk_style_set_background(widget->style, form->bin_window, GTK_STATE_NORMAL);
 #endif
 
+#ifndef USE_GTK3
 #ifdef GSEAL_ENABLE
     gdk_window_add_filter(gtk_widget_get_window(widget), gtk_form_main_filter, form);
 #else
     gdk_window_add_filter(widget->window, gtk_form_main_filter, form);
 #endif
     gdk_window_add_filter(form->bin_window, gtk_form_filter, form);
+#endif
 
     for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
     {
@@ -1032,6 +1038,7 @@ gtk_form_position_children(GtkForm *form)
  * them or discards them, depending on whether we are obscured
  * or not.
  */
+#ifndef USE_GTK3
     static GdkFilterReturn
 gtk_form_filter(GdkXEvent *gdk_xevent, GdkEvent *event UNUSED, gpointer data)
 {
@@ -1061,11 +1068,13 @@ gtk_form_filter(GdkXEvent *gdk_xevent, GdkEvent *event UNUSED, gpointer data)
 
     return GDK_FILTER_CONTINUE;
 }
+#endif
 
 /* Although GDK does have a GDK_VISIBILITY_NOTIFY event,
  * there is no corresponding event in GTK, so we have
  * to get the events from a filter
  */
+#ifndef USE_GTK3
     static GdkFilterReturn
 gtk_form_main_filter(GdkXEvent *gdk_xevent,
 		     GdkEvent *event UNUSED,
@@ -1098,6 +1107,7 @@ gtk_form_main_filter(GdkXEvent *gdk_xevent,
     }
     return GDK_FILTER_CONTINUE;
 }
+#endif
 
 #if !GTK_CHECK_VERSION(3,16,0)
     static void
