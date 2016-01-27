@@ -3391,7 +3391,7 @@ on_tabline_menu(GtkWidget *widget, GdkEvent *event)
 on_select_tab(
 	GtkNotebook	*notebook UNUSED,
 #ifdef GTK_DISABLE_DEPRECATED
-        gpointer       *page UNUSED,
+        gpointer        *page UNUSED,
 #else
 	GtkNotebookPage *page UNUSED,
 #endif
