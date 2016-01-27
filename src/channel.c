@@ -361,6 +361,18 @@ messageFromNetbeans(XtPointer clientData,
 #endif
 
 #ifdef FEAT_GUI_GTK
+# if GTK_CHECK_VERSION(3,0,0)
+    static gboolean
+messageFromNetbeans(GIOChannel *unused1 UNUSED,
+                    GIOCondition unused2 UNUSED,
+                    gpointer clientData UNUSED)
+{
+    channel_read(GPOINTER_TO_INT(clientData));
+    return TRUE; /* assumes the event source isn't removed after this
+                  * function returns.
+                  */
+}
+# else
     static void
 messageFromNetbeans(gpointer clientData,
 		    gint unused1 UNUSED,
@@ -368,6 +380,7 @@ messageFromNetbeans(gpointer clientData,
 {
     channel_read_fd((int)(long)clientData);
 }
+# endif
 #endif
 
     static void
@@ -388,12 +401,27 @@ channel_gui_register_one(channel_T *channel, int part)
     /* Tell gdk we are interested in being called when there
      * is input on the editor connection socket. */
     if (channel->ch_part[part].ch_inputHandler == 0)
+#   if GTK_CHECK_VERSION(3,0,0)
+    {
+	GIOChannel *chnnl = g_io_channel_unix_new(
+		(gint)channel->ch_part[part].ch_fd);
+
+	channel->ch_part[part].ch_inputHandler = g_io_add_watch(
+		chnnl,
+		G_IO_IN|G_IO_HUP|G_IO_ERR|G_IO_PRI,
+		messageFromNetbeans,
+		GINT_TO_POINTER(channel->ch_part[part].ch_fd));
+
+        g_io_channel_unref(chnnl);
+    }
+#   else
 	channel->ch_part[part].ch_inputHandler = gdk_input_add(
 		(gint)channel->ch_part[part].ch_fd,
 		(GdkInputCondition)
 			     ((int)GDK_INPUT_READ + (int)GDK_INPUT_EXCEPTION),
 		messageFromNetbeans,
 		(gpointer)(long)channel->ch_part[part].ch_fd);
+#   endif
 #  else
 #   ifdef FEAT_GUI_W32
     /* Tell Windows we are interested in receiving message when there
@@ -457,7 +485,11 @@ channel_gui_unregister(channel_T *channel)
 #  ifdef FEAT_GUI_GTK
 	if (channel->ch_part[part].ch_inputHandler != 0)
 	{
+#   if GTK_CHECK_VERSION(3,0,0)
+	    g_source_remove(channel->ch_part[part].ch_inputHandler);
+#   else
 	    gdk_input_remove(channel->ch_part[part].ch_inputHandler);
+#   endif
 	    channel->ch_part[part].ch_inputHandler = 0;
 	}
 #  else
