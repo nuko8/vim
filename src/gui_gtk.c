@@ -112,6 +112,70 @@ static void recent_func_log_func(
  * match toolbar_names[] in menu.c!  All stock icons including the "vim-*"
  * ones can be overridden in your gtkrc file.
  */
+#if GTK_CHECK_VERSION(3,10,0)
+static const char * const menu_themed_names[] =
+{
+    /* 00 */ "document-new",            /* GTK_STOCK_NEW */
+    /* 01 */ "document-open",           /* GTK_STOCK_OPEN */
+    /* 02 */ "document-save",           /* GTK_STOCK_SAVE */
+    /* 03 */ "edit-undo",               /* GTK_STOCK_UNDO */
+    /* 04 */ "edit-redo",               /* GTK_STOCK_REDO */
+    /* 05 */ "edit-cut",                /* GTK_STOCK_CUT */
+    /* 06 */ "edit-copy",               /* GTK_STOCK_COPY */
+    /* 07 */ "edit-paste",              /* GTK_STOCK_PASTE */
+    /* 08 */ "document-print",          /* GTK_STOCK_PRINT */
+    /* 09 */ "help-browser",            /* GTK_STOCK_HELP */
+    /* 10 */ "edit-find",               /* GTK_STOCK_FIND */
+#if GTK_CHECK_VERSION(3,14,0)
+    /* Use the file names in gui_gtk_res.xml, cutting off the extension.
+     * Similar changes follow. */
+    /* 11 */ "stock_vim_save_all",
+    /* 12 */ "stock_vim_session_save",
+    /* 13 */ "stock_vim_session_new",
+    /* 14 */ "stock_vim_session_load",
+#else
+    /* 11 */ "vim-save-all",
+    /* 12 */ "vim-session-save",
+    /* 13 */ "vim-session-new",
+    /* 14 */ "vim-session-load",
+#endif
+    /* 15 */ "system-run",              /* GTK_STOCK_EXECUTE */
+    /* 16 */ "edit-find-replace",       /* GTK_STOCK_FIND_AND_REPLACE */
+    /* 17 */ "window-close",            /* GTK_STOCK_CLOSE, FIXME: fuzzy */
+#if GTK_CHECK_VERSION(3,14,0)
+    /* 18 */ "stock_vim_window_maximize",
+    /* 19 */ "stock_vim_window_minimize",
+    /* 20 */ "stock_vim_window_split",
+    /* 21 */ "stock_vim_shell",
+#else
+    /* 18 */ "vim-window-maximize",
+    /* 19 */ "vim-window-minimize",
+    /* 20 */ "vim-window-split",
+    /* 21 */ "vim-shell",
+#endif
+    /* 22 */ "go-previous",             /* GTK_STOCK_GO_BACK */
+    /* 23 */ "go-next",                 /* GTK_STOCK_GO_FORWARD */
+#if GTK_CHECK_VERSION(3,14,0)
+    /* 24 */ "stock_vim_find_help",
+#else
+    /* 24 */ "vim-find-help",
+#endif
+    /* 25 */ "gtk-convert",             /* GTK_STOCK_CONVERT */
+    /* 26 */ "go-jump",                 /* GTK_STOCK_JUMP_TO */
+#if GTK_CHECK_VERSION(3,14,0)
+    /* 27 */ "stock_vim_build_tags",
+    /* 28 */ "stock_vim_window_split_vertical",
+    /* 29 */ "stock_vim_window_maximize_width",
+    /* 30 */ "stock_vim_window_minimize_width",
+#else
+    /* 27 */ "vim-build-tags",
+    /* 28 */ "vim-window-split-vertical",
+    /* 29 */ "vim-window-maximize-width",
+    /* 30 */ "vim-window-minimize-width",
+#endif
+    /* 31 */ "application-exit",        /* GTK_STOCK_QUIT */
+};
+#else
 static const char * const menu_stock_ids[] =
 {
     /* 00 */ GTK_STOCK_NEW,
@@ -147,6 +211,7 @@ static const char * const menu_stock_ids[] =
     /* 30 */ "vim-window-minimize-width",
     /* 31 */ GTK_STOCK_QUIT
 };
+#endif
 
 #ifdef USE_GRESOURCE
 typedef struct IconNames {
@@ -221,6 +286,9 @@ lookup_menu_iconfile(char_u *iconfile, char_u *dest)
     static GtkWidget *
 load_menu_iconfile(char_u *name, GtkIconSize icon_size)
 {
+#if GTK_CHECK_VERSION(3,10,0)
+    return NULL;
+#else
     GtkWidget	    *image = NULL;
     GtkIconSet	    *icon_set;
     GtkIconSource   *icon_source;
@@ -242,6 +310,7 @@ load_menu_iconfile(char_u *name, GtkIconSize icon_size)
     gtk_icon_set_unref(icon_set);
 
     return image;
+#endif
 }
 
     static GtkWidget *
@@ -262,6 +331,17 @@ create_menu_icon(vimmenu_T *menu, GtkIconSize icon_size)
     /* Still not found?  Then use a builtin icon, a blank one as fallback. */
     if (image == NULL)
     {
+#if GTK_CHECK_VERSION(3,10,0)
+        const char *icon_name = NULL;
+        const int   n_names = G_N_ELEMENTS(menu_themed_names);
+
+	if (menu->iconidx >= 0 && menu->iconidx < n_names)
+	    icon_name = menu_themed_names[menu->iconidx];
+        if (icon_name == NULL)
+	    icon_name = "image-missing";
+
+        image = gtk_image_new_from_icon_name(icon_name, icon_size);
+#else
 	const char  *stock_id;
 	const int   n_ids = G_N_ELEMENTS(menu_stock_ids);
 
@@ -271,6 +351,7 @@ create_menu_icon(vimmenu_T *menu, GtkIconSize icon_size)
 	    stock_id = GTK_STOCK_MISSING_IMAGE;
 
 	image = gtk_image_new_from_stock(stock_id, icon_size);
+#endif
     }
 
     return image;
@@ -318,9 +399,64 @@ gui_gtk_register_stock_icons(void)
     ADD_ICON("vim-window-split-vertical", stock_vim_window_split_vertical);
 
 # undef ADD_ICON
+
+    gtk_icon_factory_add_default(factory);
+    g_object_unref(factory);
 #else
-    GtkIconFactory * const factory = gtk_icon_factory_new();
     const char * const path_prefix = "/org/vim/gui/icon";
+# if GTK_CHECK_VERSION(3,14,0)
+    GdkScreen *screen;
+    GtkIconTheme *icon_theme;
+
+    if (GTK_IS_WIDGET(gui.mainwin))
+        screen = gtk_widget_get_screen(gui.mainwin);
+    else
+        screen = gdk_screen_get_default();
+    icon_theme = gtk_icon_theme_get_for_screen(screen);
+    gtk_icon_theme_add_resource_path(icon_theme, path_prefix);
+# elif GTK_CHECK_VERSION(3,0,0)
+    IconNames *names;
+
+    for (names = stock_vim_icons; names->icon_name != NULL; names++)
+    {
+        char path[MAXPATHL];
+
+        vim_snprintf(path, MAXPATHL, "%s/%s", path_prefix, names->file_name);
+        GdkPixbuf *pixbuf = NULL;
+        pixbuf = gdk_pixbuf_new_from_resource(path, NULL);
+        if (pixbuf != NULL)
+        {
+            const gint size = MAX(gdk_pixbuf_get_width(pixbuf),
+                                  gdk_pixbuf_get_height(pixbuf));
+            if (size > 16)
+            {
+                /* An icon theme is supposed to provide fixed-size
+                 * image files for each size, e.g., 16, 22, 24, ...
+                 * Naturally, in contrast to GtkIconSet, GtkIconTheme
+                 * won't prepare size variants for us out of a single
+                 * fixed-size image.
+                 *
+                 * Currently, Vim provides 24x24 images only while the
+                 * icon size on the menu and the toolbar is set to 16x16
+                 * by default.
+                 *
+                 * Resize them by ourselves until we have our own fully
+                 * fledged icon theme. */
+                GdkPixbuf *src = pixbuf;
+                pixbuf = gdk_pixbuf_scale_simple(src,
+                                                 16, 16,
+                                                 GDK_INTERP_BILINEAR);
+                if (pixbuf == NULL)
+                    pixbuf = src;
+                else
+                    g_object_unref(src);
+            }
+            gtk_icon_theme_add_builtin_icon(names->icon_name, size, pixbuf);
+            g_object_unref(pixbuf);
+        }
+    }
+# else
+    GtkIconFactory * const factory = gtk_icon_factory_new();
     IconNames *names;
 
     for (names = stock_vim_icons; names->icon_name != NULL; names++)
@@ -338,9 +474,11 @@ gui_gtk_register_stock_icons(void)
             g_object_unref(pixbuf);
         }
     }
-#endif
+
     gtk_icon_factory_add_default(factory);
     g_object_unref(factory);
+# endif
+#endif
 }
 
 #endif /* FEAT_TOOLBAR */

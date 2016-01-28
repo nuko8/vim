@@ -3188,6 +3188,17 @@ icon_size_changed_foreach(GtkWidget *widget, gpointer user_data)
     {
 	GtkImage *image = (GtkImage *)widget;
 
+#if GTK_CHECK_VERSION(3,10,0)
+        if (gtk_image_get_storage_type(image) == GTK_IMAGE_ICON_NAME)
+        {
+            const GtkIconSize icon_size = GPOINTER_TO_INT(user_data);
+            const gchar *icon_name;
+
+            gtk_image_get_icon_name(image, &icon_name, NULL);
+
+            gtk_image_set_from_icon_name(image, icon_name, icon_size);
+        }
+#else
 	/* User-defined icons are stored in a GtkIconSet */
 	if (gtk_image_get_storage_type(image) == GTK_IMAGE_ICON_SET)
 	{
@@ -3201,6 +3212,7 @@ icon_size_changed_foreach(GtkWidget *widget, gpointer user_data)
 	    gtk_image_set_from_icon_set(image, icon_set, icon_size);
 	    gtk_icon_set_unref(icon_set);
 	}
+#endif
     }
     else if (GTK_IS_CONTAINER(widget))
     {
