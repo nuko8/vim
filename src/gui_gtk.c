@@ -106,12 +106,6 @@ static void recent_func_log_func(
 	gpointer user_data);
 #endif
 
-/* Suspend "deprecated-declarations" warnings in favor of stock icons */
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 #if defined(FEAT_TOOLBAR)
 /*
  * Table from BuiltIn## icon indices to GTK+ stock IDs.  Order must exactly
@@ -350,11 +344,6 @@ gui_gtk_register_stock_icons(void)
 }
 
 #endif /* FEAT_TOOLBAR */
-
-/* Resume "deprecated-declarations" warnings */
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
 
 #if defined(FEAT_MENU) || defined(PROTO)
 
