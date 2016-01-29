@@ -1731,7 +1731,7 @@ process_motion_notify(int x, int y, GdkModifierType state)
     static GdkWindow *
 gui_gtk_get_pointer(GtkWidget *widget, gint *x, gint *y, GdkModifierType *state)
 {
-    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+    GdkWindow * const win = gtk_widget_get_window(widget);
     GdkDisplay * const dpy = gdk_window_get_display(win);
     GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
     GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
