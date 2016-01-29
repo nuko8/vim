@@ -6706,27 +6706,14 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
     static void
 gui_gtk_window_clear(GdkWindow *win)
 {
-    cairo_pattern_t *pat;
-    cairo_t *cr;
+    const cairo_rectangle_int_t rect =
+        { 0, 0, gdk_window_get_width(win), gdk_window_get_height(win) };
+    cairo_region_t * const region = cairo_region_create_rectangle(&rect);
 
-    cr = gdk_cairo_create(win);
+    gdk_window_begin_paint_region(win, region);
+    gdk_window_end_paint(win);
 
-    pat = gdk_window_get_background_pattern(win);
-    if (pat)
-    {
-        cairo_set_source(cr, pat);
-        cairo_paint(cr);
-    }
-    else
-    {
-        set_cairo_source_rgb_from_pixel(cr, gui.back_pixel);
-        cairo_rectangle(cr, 0, 0,
-                        gdk_window_get_width(win),
-                        gdk_window_get_height(win));
-        cairo_fill(cr);
-    }
-
-    cairo_destroy(cr);
+    cairo_region_destroy(region);
 }
 #endif
 
