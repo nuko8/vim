@@ -6668,17 +6668,14 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
     GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
     if (win != NULL)
     {
-        const cairo_rectangle_int_t rect = {
+        const GdkRectangle rect = {
             FILL_X(col1),
             FILL_Y(row1),
             (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
             (row2 - row1 + 1) * gui.char_height,
         };
-        cairo_region_t * const region = cairo_region_create_rectangle(&rect);
-
-        gdk_window_begin_paint_region(win, region);
+        gdk_window_begin_paint_rect(win, &rect);
         gdk_window_end_paint(win);
-        cairo_region_destroy(region);
     }
 #else
     GdkColor color;
@@ -6724,14 +6721,11 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
     static void
 gui_gtk_window_clear(GdkWindow *win)
 {
-    const cairo_rectangle_int_t rect =
-        { 0, 0, gdk_window_get_width(win), gdk_window_get_height(win) };
-    cairo_region_t * const region = cairo_region_create_rectangle(&rect);
-
-    gdk_window_begin_paint_region(win, region);
+    const GdkRectangle rect = {
+        0, 0, gdk_window_get_width(win), gdk_window_get_height(win)
+    };
+    gdk_window_begin_paint_rect(win, &rect);
     gdk_window_end_paint(win);
-
-    cairo_region_destroy(region);
 }
 #endif
 
@@ -6803,17 +6797,27 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
     const int x      = FILL_X(left);
     const int width  = gui.char_width * (right - left + 1) + 1;
     const int height = gui.char_height * (bot - row - num_lines + 1);
+#ifdef USE_GTK3
+    const cairo_rectangle_int_t rect = { x, y_src, width, height };
+    cairo_region_t *region = cairo_region_create_rectangle(&rect);
 
+    gdk_window_move_region(gtk_widget_get_window(gui.drawarea),
+                           region, 0, y_dest - y_src);
+    cairo_region_destroy(region);
+#else
     gdk_window_scroll(gtk_widget_get_window(gui.drawarea), 0, y_dest - y_src);
+#endif
 
     if (from > to)
         gui_clear_block(bot - num_lines + 1, left, bot, right);
     else
         gui_clear_block(row, left, row + num_lines - 1, right);
 
+#ifndef USE_GTK3
     gui_dont_update_cursor();
     gui_redraw(x, y_dest, width, height);
     gui_can_update_cursor();
+#endif
 }
 #endif
 
