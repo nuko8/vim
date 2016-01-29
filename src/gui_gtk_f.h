@@ -44,12 +44,16 @@ struct _GtkForm
 
     GList *children;
 
+#ifndef USE_GTK3
     guint width;
     guint height;
+#endif
 
     GdkWindow *bin_window;
 
+#ifndef USE_GTK3
     GdkVisibilityState visibility;
+#endif
     gulong configure_serial;
 
     gint freeze_count;

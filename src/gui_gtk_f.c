@@ -297,8 +297,10 @@ gtk_form_init(GtkForm *form)
 {
     form->children = NULL;
 
+#ifndef USE_GTK3
     form->width = 1;
     form->height = 1;
+#endif
 
     form->bin_window = NULL;
 
@@ -543,12 +545,17 @@ gtk_form_size_request(GtkWidget *widget, GtkRequisition *requisition)
 
     form = GTK_FORM(widget);
 
+#ifdef USE_GTK3
+    requisition->width = 1;
+    requisition->height = 1;
+#else
     requisition->width = form->width;
     requisition->height = form->height;
-
-    tmp_list = form->children;
+#endif
 
 #ifndef USE_GTK3
+    tmp_list = form->children;
+
     while (tmp_list)
     {
 	GtkFormChild *child = tmp_list->data;
