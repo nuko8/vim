@@ -6664,13 +6664,30 @@ gui_mch_flush(void)
     void
 gui_mch_clear_block(int row1, int col1, int row2, int col2)
 {
+#ifdef USE_GTK3
+    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+    if (win != NULL)
+    {
+        const cairo_rectangle_int_t rect = {
+            FILL_X(col1),
+            FILL_Y(row1),
+            (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
+            (row2 - row1 + 1) * gui.char_height,
+        };
+        cairo_region_t * const region = cairo_region_create_rectangle(&rect);
+
+        gdk_window_begin_paint_region(win, region);
+        gdk_window_end_paint(win);
+        cairo_region_destroy(region);
+    }
+#else
     GdkColor color;
 
-#ifdef GSEAL_ENABLE
+# ifdef GSEAL_ENABLE
     if (gtk_widget_get_window(gui.drawarea) == NULL)
-#else
+# else
     if (gui.drawarea->window == NULL)
-#endif
+# endif
 	return;
 
     color.pixel = gui.back_pixel;
@@ -6689,7 +6706,7 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
         cairo_fill(cr);
         cairo_destroy(cr);
     }
-#else
+# else
     gdk_gc_set_foreground(gui.text_gc, &color);
 
     /* Clear one extra pixel at the far right, for when bold characters have
@@ -6699,7 +6716,8 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 		       (col2 - col1 + 1) * gui.char_width
 						      + (col2 == Columns - 1),
 		       (row2 - row1 + 1) * gui.char_height);
-#endif
+# endif
+#endif /* USE_GTK3 */
 }
 
 #ifdef USE_GTK3
