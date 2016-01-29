@@ -991,6 +991,7 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 #else
     value = (long)adjustment->value;
 #endif
+#ifndef USE_GTK3
     /*
      * The dragging argument must be right for the scrollbar to work with
      * closed folds.  This isn't documented, hopefully this will keep on
@@ -1014,32 +1015,22 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 
 	    /* vertical scrollbar: need to set "dragging" properly in case
 	     * there are closed folds. */
-#ifdef GSEAL_ENABLE
-#if GTK_CHECK_VERSION(3,0,0)
-            {
-                GdkWindow * const win = gtk_widget_get_window(sb->id);
-                GdkDisplay * const dpy = gdk_window_get_display(win);
-                GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
-                GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
-                gdk_window_get_device_position(win, dev , &x, &y, &state);
-            }
-#else
+# ifdef GSEAL_ENABLE
 	    gdk_window_get_pointer(gtk_widget_get_window(sb->id), &x, &y, &state);
-#endif
-#else
+# else
 	    gdk_window_get_pointer(sb->id->window, &x, &y, &state);
-#endif
-#ifdef GDK_DISABLE_DEPRECATED
-#ifdef GSEAL_ENABLE
+# endif
+# ifdef GDK_DISABLE_DEPRECATED
+#  ifdef GSEAL_ENABLE
             width = gdk_window_get_width(gtk_widget_get_window(sb->id));
             height = gdk_window_get_height(gtk_widget_get_window(sb->id));
-#else
+#  else
             width = gdk_window_get_width(sb->id->window);
             height = gdk_window_get_height(sb->id->window);
-#endif
-#else
+#  endif
+# else
 	    gdk_window_get_size(sb->id->window, &width, &height);
-#endif
+# endif
 	    if (x >= 0 && x < width && y >= 0 && y < height)
 	    {
 		if (y < width)
@@ -1057,7 +1048,7 @@ adjustment_value_changed(GtkAdjustment *adjustment, gpointer data)
 	    }
 	}
     }
-
+#endif /* USE_GTK3 */
     gui_drag_scrollbar(sb, value, dragging);
 }
 
