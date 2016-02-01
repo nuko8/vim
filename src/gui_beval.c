@@ -1322,6 +1322,7 @@ createBalloonEvalWindow(BalloonEval *beval)
     g_value_set_float(&align_val, 0.5);
     g_object_set_property(G_OBJECT(beval->balloonLabel), "xalign", &align_val);
     g_object_set_property(G_OBJECT(beval->balloonLabel), "yalign", &align_val);
+    g_value_unset(&align_val);
 #else
     gtk_misc_set_alignment(GTK_MISC(beval->balloonLabel), 0.5f, 0.5f);
 #endif

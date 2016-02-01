@@ -2127,6 +2127,7 @@ find_replace_dialog_create(char_u *arg, int do_replace)
     g_value_set_float(&align_val, 0.0);
     g_object_set_property(G_OBJECT(tmp), "xalign_val", &align);
     g_object_set_property(G_OBJECT(tmp), "yalign_val", &align);
+    g_value_unset(&align_val);
 #else
     gtk_misc_set_alignment(GTK_MISC(tmp), (gfloat)0.0, (gfloat)0.5);
 #endif
@@ -2175,6 +2176,8 @@ find_replace_dialog_create(char_u *arg, int do_replace)
         g_value_set_float(&yalign, 0.5);
         g_object_set_property(G_OBJECT(tmp), "xalign", &xalign);
         g_object_set_property(G_OBJECT(tmp), "yalign", &yalign);
+        g_unset(&xalign);
+        g_unset(&yalign);
 #else
         gtk_misc_set_alignment(GTK_MISC(tmp), (gfloat)0.0, (gfloat)0.5);
 #endif
