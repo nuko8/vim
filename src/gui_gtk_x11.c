@@ -4252,8 +4252,22 @@ gui_mch_new_colors(void)
         GdkRGBA color;
 
         gui_gtk_get_rgb_from_pixel(gui.back_pixel, &color);
-        gdk_window_set_background_rgba(gtk_widget_get_window(gui.drawarea),
-                                       &color);
+        cairo_pattern_t * const pattern
+            = cairo_pattern_create_rgba(color.red,
+                                        color.green,
+                                        color.blue,
+                                        color.alpha);
+        if (pattern != NULL)
+        {
+            gdk_window_set_background_pattern(gtk_widget_get_window(gui.drawarea),
+                                              pattern);
+            cairo_pattern_destroy(pattern);
+        }
+        else
+        {
+            gdk_window_set_background_rgba(gtk_widget_get_window(gui.drawarea),
+                                           &color);
+        }
 #else
 	GdkColor color = { 0, 0, 0, 0 };
 
@@ -6664,46 +6678,40 @@ gui_mch_flush(void)
     void
 gui_mch_clear_block(int row1, int col1, int row2, int col2)
 {
-#ifdef USE_GTK3
-    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
-    if (win != NULL)
-    {
-        const GdkRectangle rect = {
-            FILL_X(col1),
-            FILL_Y(row1),
-            (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
-            (row2 - row1 + 1) * gui.char_height,
-        };
-        gdk_window_begin_paint_rect(win, &rect);
-        gdk_window_end_paint(win);
-    }
-#else
     GdkColor color;
 
-# ifdef GSEAL_ENABLE
+#ifdef GSEAL_ENABLE
     if (gtk_widget_get_window(gui.drawarea) == NULL)
-# else
+#else
     if (gui.drawarea->window == NULL)
-# endif
+#endif
 	return;
 
     color.pixel = gui.back_pixel;
 
 #ifdef GDK_DISABLE_DEPRECATED
     {
-        cairo_t *cr;
+        const GdkRectangle rect = {
+            FILL_X(col1), FILL_Y(row1),
+            (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
+            (row2 - row1 + 1) * gui.char_height
+        };
+        GdkWindow * const window = gtk_widget_get_window(gui.drawarea);
 
-        cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
-        cairo_set_line_width(cr, 1.0);
-        set_cairo_source_rgb_from_pixel(cr, color.pixel);
-        cairo_rectangle(cr,
-                        FILL_X(col1), FILL_Y(row1),
-                        (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
-                        (row2 - row1 + 1) * gui.char_height);
+        cairo_t *cr = NULL;
+        cairo_pattern_t *pattern = NULL;
+
+        cr = gdk_cairo_create(window);
+        pattern = gdk_window_get_background_pattern(window);
+        if (pattern != NULL)
+            cairo_set_source(cr, pattern);
+        else
+            set_cairo_source_rgb_from_pixel(cr, color.pixel);
+        gdk_cairo_rectangle(cr, &rect);
         cairo_fill(cr);
         cairo_destroy(cr);
     }
-# else
+#else
     gdk_gc_set_foreground(gui.text_gc, &color);
 
     /* Clear one extra pixel at the far right, for when bold characters have
@@ -6713,8 +6721,7 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 		       (col2 - col1 + 1) * gui.char_width
 						      + (col2 == Columns - 1),
 		       (row2 - row1 + 1) * gui.char_height);
-# endif
-#endif /* USE_GTK3 */
+#endif
 }
 
 #ifdef USE_GTK3
@@ -6724,8 +6731,18 @@ gui_gtk_window_clear(GdkWindow *win)
     const GdkRectangle rect = {
         0, 0, gdk_window_get_width(win), gdk_window_get_height(win)
     };
-    gdk_window_begin_paint_rect(win, &rect);
-    gdk_window_end_paint(win);
+    cairo_t *cr = NULL;
+    cairo_pattern_t *pattern = NULL;
+
+    cr = gdk_cairo_create(win);
+    pattern = gdk_window_get_background_pattern(win);
+    if (pattern != NULL)
+        cairo_set_source(cr, pattern);
+    else
+        set_cairo_source_rgb_from_pixel(cr, gui.back_pixel);
+    gdk_cairo_rectangle(cr, &rect);
+    cairo_fill(cr);
+    cairo_destroy(cr);
 }
 #endif
 
