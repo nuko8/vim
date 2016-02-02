@@ -7063,10 +7063,14 @@ gui_mch_enable_scrollbar(scrollbar_T *sb, int flag)
     if (sb->id == NULL)
 	return;
 
+#if GTK_CHECK_VERSION(2,18,0)
+    gtk_widget_set_visible(sb->id, flag);
+#else
     if (flag)
 	gtk_widget_show(sb->id);
     else
 	gtk_widget_hide(sb->id);
+#endif
 
     update_window_manager_hints(0, 0);
 }
