@@ -6816,7 +6816,7 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
     const int height = gui.char_height * (bot - row - num_lines + 1);
 #ifdef USE_GTK3
     const cairo_rectangle_int_t rect = { x, y_src, width, height };
-    cairo_region_t *region = cairo_region_create_rectangle(&rect);
+    cairo_region_t * const region = cairo_region_create_rectangle(&rect);
 
     gdk_window_move_region(gtk_widget_get_window(gui.drawarea),
                            region, 0, y_dest - y_src);
@@ -6825,10 +6825,12 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
     gdk_window_scroll(gtk_widget_get_window(gui.drawarea), 0, y_dest - y_src);
 #endif
 
+#ifndef USE_GTK3
     if (from > to)
         gui_clear_block(bot - num_lines + 1, left, bot, right);
     else
         gui_clear_block(row, left, row + num_lines - 1, right);
+#endif
 
 #ifndef USE_GTK3
     gui_dont_update_cursor();
