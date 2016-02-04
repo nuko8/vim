@@ -182,11 +182,6 @@ gtk_form_put(GtkForm	*form,
 	gtk_form_realize_child(form, child);
 
     gtk_form_position_child(form, child, TRUE);
-#ifdef USE_GTK3
-    if (gtk_widget_get_realized(GTK_WIDGET(form)) &&
-        gtk_widget_get_realized(child_widget))
-        gtk_widget_show(child_widget);
-#endif
 }
 
     void
