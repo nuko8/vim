@@ -286,10 +286,53 @@ lookup_menu_iconfile(char_u *iconfile, char_u *dest)
     static GtkWidget *
 load_menu_iconfile(char_u *name, GtkIconSize icon_size)
 {
-#if GTK_CHECK_VERSION(3,10,0)
-    return NULL;
-#else
     GtkWidget	    *image = NULL;
+#if GTK_CHECK_VERSION(3,10,0)
+    int              pixel_size = -1;
+
+    switch (icon_size)
+    {
+        case GTK_ICON_SIZE_MENU:
+            pixel_size = 16;
+            break;
+        case GTK_ICON_SIZE_SMALL_TOOLBAR:
+            pixel_size = 16;
+            break;
+        case GTK_ICON_SIZE_LARGE_TOOLBAR:
+            pixel_size = 24;
+            break;
+        case GTK_ICON_SIZE_BUTTON:
+            pixel_size = 16;
+            break;
+        case GTK_ICON_SIZE_DND:
+            pixel_size = 32;
+            break;
+        case GTK_ICON_SIZE_DIALOG:
+            pixel_size = 48;
+            break;
+        case GTK_ICON_SIZE_INVALID:
+            /* FALLTHROUGH */
+        default:
+            pixel_size = 0;
+            break;
+    }
+
+    if (pixel_size > 0 || pixel_size == -1)
+    {
+        GdkPixbuf * const pixbuf
+            = gdk_pixbuf_new_from_file_at_scale((const char *)name,
+                pixel_size, pixel_size, TRUE, NULL);
+        if (pixbuf != NULL)
+        {
+            image = gtk_image_new_from_pixbuf(pixbuf);
+            g_object_unref(pixbuf);
+        }
+    }
+    if (image == NULL)
+        image = gtk_image_new_from_icon_name("image-missing", icon_size);
+
+    return image;
+#else
     GtkIconSet	    *icon_set;
     GtkIconSource   *icon_source;
 
