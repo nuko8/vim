@@ -618,20 +618,18 @@ visibility_event(GtkWidget *widget UNUSED,
  */
 #ifdef USE_GTK3
     static gboolean
-draw_event(GtkWidget*widget UNUSED,
-           cairo_t *cr,
-           gpointer user_data UNUSED)
+draw_event(GtkWidget *widget UNUSED,
+           cairo_t   *cr,
+           gpointer   user_data UNUSED)
 {
-    GdkRectangle clip_rect;
+    GdkRectangle rect;
 
     /* Skip this when the GUI isn't set up yet, will redraw later. */
     if (gui.starting)
 	return FALSE;
 
-    out_flush();		/* make sure all output has been processed */
-
-    if (gdk_cairo_get_clip_rectangle(cr, &clip_rect))
-        gui_redraw(clip_rect.x, clip_rect.y, clip_rect.width, clip_rect.height);
+    cairo_set_source_surface(cr, gui.surface, 0, 0);
+    cairo_paint(cr);
 
     return FALSE;
 }
@@ -2872,7 +2870,12 @@ drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
     xim_init();
 #endif
     gui_mch_new_colors();
-#ifndef GDK_DISABLE_DEPRECATED
+#ifdef GDK_DISABLE_DEPRECATED
+    gui.surface = gdk_window_create_similar_surface(gtk_widget_get_window(widget),
+            CAIRO_CONTENT_COLOR_ALPHA,
+            gtk_widget_get_allocated_width(widget),
+            gtk_widget_get_allocated_height(widget));
+#else
     gui.text_gc = gdk_gc_new(gui.drawarea->window);
 #endif
 
@@ -2948,7 +2951,13 @@ drawarea_unrealize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
     g_object_unref(gui.text_context);
     gui.text_context = NULL;
 
-#ifndef GDK_DISABLE_DEPRECATED
+#ifdef GDK_DISABLE_DEPRECATED
+    if (gui.surface != NULL)
+    {
+        cairo_surface_destroy(gui.surface);
+        gui.surface = NULL;
+    }
+#else
     g_object_unref(gui.text_gc);
     gui.text_gc = NULL;
 #endif
@@ -2968,6 +2977,24 @@ drawarea_style_set_cb(GtkWidget	*widget UNUSED,
 {
     gui_mch_new_colors();
 }
+
+#ifdef USE_GTK3
+    static gboolean
+drawarea_configure_event_cb(GtkWidget         *widget,
+                            GdkEventConfigure *event,
+                            gpointer           data)
+{
+    if (gui.surface != NULL)
+        cairo_surface_destroy(gui.surface);
+
+    gui.surface = gdk_window_create_similar_surface(gtk_widget_get_window(widget),
+            CAIRO_CONTENT_COLOR_ALPHA,
+            gtk_widget_get_allocated_width(widget),
+            gtk_widget_get_allocated_height(widget));
+
+    return TRUE;
+}
+#endif
 
 /*
  * Callback routine for the "delete_event" signal on the toplevel window.
@@ -3963,6 +3990,9 @@ gui_mch_init(void)
 #endif
 
     gui.drawarea = gtk_drawing_area_new();
+#ifdef USET_GTK3
+    gui.surface = NULL;
+#endif
 
     /* Determine which events we will filter. */
     gtk_widget_set_events(gui.drawarea,
@@ -4008,6 +4038,10 @@ gui_mch_init(void)
                      G_CALLBACK(drawarea_realize_cb), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "unrealize",
                      G_CALLBACK(drawarea_unrealize_cb), NULL);
+#ifdef USE_GTK3
+    g_signal_connect(G_OBJECT(gui.drawarea), "configure-event",
+            G_CALLBACK(drawarea_configure_event_cb), NULL);
+#endif
 
     g_signal_connect_after(G_OBJECT(gui.drawarea), "style-set",
                            G_CALLBACK(&drawarea_style_set_cb), NULL);
@@ -5857,7 +5891,7 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
     area.height = gui.char_height;
 
 #ifdef GDK_DISABLE_DEPRECATED
-    cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+    cr = cairo_create(gui.surface);
     cairo_rectangle(cr, area.x, area.y, area.width, area.height);
     cairo_clip(cr);
 #else
@@ -6082,6 +6116,8 @@ skipitall:
 
 #ifdef GDK_DISABLE_DEPRECATED
     cairo_destroy(cr);
+    gtk_widget_queue_draw_area(gui.drawarea,
+            area.x, area.y, area.width, area.height);
 #else
     gdk_gc_set_clip_rectangle(gui.text_gc, NULL);
 #endif
@@ -6203,7 +6239,7 @@ gui_mch_flash(int msec)
 #ifdef GDK_DISABLE_DEPRECATED
     drawarea = gtk_widget_get_window(gui.drawarea);
 
-    cr = gdk_cairo_create(drawarea);
+    cr = cairo_create(gui.surface);
     width = gdk_window_get_width(drawarea);
     height = gdk_window_get_height(drawarea);
 
@@ -6279,6 +6315,8 @@ gui_mch_flash(int msec)
     cairo_surface_destroy(fg_surf);
     cairo_surface_destroy(bg_surf);
     cairo_destroy(cr);
+
+    gtk_widget_queue_draw(gui.drawarea);
 #else
     gdk_draw_rectangle(gui.drawarea->window, invert_gc,
 		       TRUE,
@@ -6319,7 +6357,7 @@ gui_mch_invert_rectangle(int r, int c, int nr, int nc)
 #ifdef GDK_DISABLE_DEPRECATED
     drawarea = gtk_widget_get_window(gui.drawarea);
 
-    cr = gdk_cairo_create(drawarea);
+    cr = cairo_create(gui.surface);
     width = gdk_window_get_width(drawarea);
     height = gdk_window_get_height(drawarea);
 
@@ -6364,6 +6402,8 @@ gui_mch_invert_rectangle(int r, int c, int nr, int nc)
     cairo_surface_destroy(bg_surf);
     cairo_surface_destroy(fg_surf);
     cairo_destroy(cr);
+
+    gtk_widget_queue_draw(gui.drawarea);
 #else
     values.foreground.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.background.pixel = gui.norm_pixel ^ gui.back_pixel;
@@ -6422,7 +6462,7 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
 	return;
 
 #ifdef GDK_DISABLE_DEPRECATED
-    cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+    cr = cairo_create(gui.surface);
 #endif
 
     gui_mch_set_fg_color(color);
@@ -6443,6 +6483,10 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
                     i * gui.char_width - 1, gui.char_height - 1);
     cairo_stroke(cr);
     cairo_destroy(cr);
+
+    gtk_widget_queue_draw_area(gui.drawarea,
+            FILL_X(gui.col), FILL_Y(gui.row),
+            i * gui.char_width - 1, gui.char_height - 1);
 #else
     gdk_draw_rectangle(gui.drawarea->window, gui.text_gc,
 	    FALSE,
@@ -6471,7 +6515,7 @@ gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
     {
         cairo_t *cr;
 
-        cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+        cr = cairo_create(gui.surface);
         cairo_set_line_width(cr, 1.0);
         set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
         cairo_rectangle(cr,
@@ -6483,6 +6527,14 @@ gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
 	    w, h);
         cairo_fill(cr);
         cairo_destroy(cr);
+
+        gtk_widget_queue_draw_area(gui.drawarea,
+#ifdef FEAT_RIGHTLEFT
+	    /* vertical line should be on the right of current point */
+	    CURSOR_BAR_RIGHT ? FILL_X(gui.col + 1) - w :
+#endif
+	    FILL_X(gui.col), FILL_Y(gui.row) + gui.char_height - h,
+	    w, h);
     }
 #else
     gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
@@ -6701,7 +6753,7 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
         cairo_t *cr = NULL;
         cairo_pattern_t *pattern = NULL;
 
-        cr = gdk_cairo_create(window);
+        cr = cairo_create(gui.surface);
         pattern = gdk_window_get_background_pattern(window);
         if (pattern != NULL)
             cairo_set_source(cr, pattern);
@@ -6710,6 +6762,9 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
         gdk_cairo_rectangle(cr, &rect);
         cairo_fill(cr);
         cairo_destroy(cr);
+
+        gtk_widget_queue_draw_area(gui.drawarea,
+                rect.x, rect.y, rect.width, rect.height);
     }
 #else
     gdk_gc_set_foreground(gui.text_gc, &color);
@@ -6734,7 +6789,7 @@ gui_gtk_window_clear(GdkWindow *win)
     cairo_t *cr = NULL;
     cairo_pattern_t *pattern = NULL;
 
-    cr = gdk_cairo_create(win);
+    cr = cairo_create(gui.surface);
     pattern = gdk_window_get_background_pattern(win);
     if (pattern != NULL)
         cairo_set_source(cr, pattern);
@@ -6743,6 +6798,8 @@ gui_gtk_window_clear(GdkWindow *win)
     gdk_cairo_rectangle(cr, &rect);
     cairo_fill(cr);
     cairo_destroy(cr);
+
+    gdk_window_invalidate_rect(win, &rect, TRUE);
 }
 #endif
 
@@ -6814,29 +6871,32 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
     const int x      = FILL_X(left);
     const int width  = gui.char_width * (right - left + 1) + 1;
     const int height = gui.char_height * (bot - row - num_lines + 1);
-#ifdef USE_GTK3
     const cairo_rectangle_int_t rect = { x, y_src, width, height };
-    cairo_region_t * const region = cairo_region_create_rectangle(&rect);
 
-    gdk_window_move_region(gtk_widget_get_window(gui.drawarea),
-                           region, 0, y_dest - y_src);
-    cairo_region_destroy(region);
-#else
-    gdk_window_scroll(gtk_widget_get_window(gui.drawarea), 0, y_dest - y_src);
+#if 0
+    cairo_surface_t *subsurface = NULL;
+    cairo_t *cr = NULL;
+
+    subsurface =
+        cairo_surface_create_for_rectangle(gui.surface,
+            x, y_dest, width, height);
+    cr = cairo_create(subsurface);
+
+    cairo_set_source_surface(cr, gui.surface, x, y_src);
+    cairo_paint(cr);
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(subsurface);
 #endif
 
-#ifndef USE_GTK3
     if (from > to)
         gui_clear_block(bot - num_lines + 1, left, bot, right);
     else
         gui_clear_block(row, left, row + num_lines - 1, right);
-#endif
 
-#ifndef USE_GTK3
     gui_dont_update_cursor();
     gui_redraw(x, y_dest, width, height);
     gui_can_update_cursor();
-#endif
 }
 #endif
 
@@ -7360,7 +7420,7 @@ gui_mch_drawsign(int row, int col, int typenr)
             cairo_surface_t *sign_surf;
             cairo_t         *sign_cr;
 
-            cr = gdk_cairo_create(gtk_widget_get_window(gui.drawarea));
+            cr = cairo_create(gui.surface);
 
             bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
                                                    CAIRO_CONTENT_COLOR,
@@ -7388,6 +7448,10 @@ gui_mch_drawsign(int row, int col, int typenr)
             cairo_destroy(bg_cr);
             cairo_surface_destroy(bg_surf);
             cairo_destroy(cr);
+
+            gtk_widget_queue_draw_area(gui.drawarea,
+                    FILL_X(col), FILL_Y(col), width, height);
+
         }
 #else
 	gdk_gc_set_foreground(gui.text_gc, gui.bgcolor);

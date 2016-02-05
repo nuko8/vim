@@ -383,7 +383,9 @@ typedef struct Gui
     GdkColor	*fgcolor;	    /* GDK-styled foreground color */
     GdkColor	*bgcolor;	    /* GDK-styled background color */
     GdkColor	*spcolor;	    /* GDK-styled special color */
-#ifndef GDK_DISABLE_DEPRECATED
+#ifdef GDK_DISABLE_DEPRECATED
+    cairo_surface_t *surface;       /* drawarea surface */
+#else
     GdkGC	*text_gc;	    /* cached GC for normal text */
 #endif
     PangoContext     *text_context; /* the context used for all text */
