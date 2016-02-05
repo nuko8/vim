@@ -622,12 +622,17 @@ draw_event(GtkWidget *widget UNUSED,
            cairo_t   *cr,
            gpointer   user_data UNUSED)
 {
+    GdkRectangle rect;
+
     /* Skip this when the GUI isn't set up yet, will redraw later. */
     if (gui.starting)
 	return FALSE;
 
     cairo_set_source_surface(cr, gui.surface, 0, 0);
     cairo_paint(cr);
+
+    if (gdk_cairo_get_clip_rectangle(cr, &rect))
+        gui_redraw(rect.x, rect.y, rect.width, rect.height);
 
     return FALSE;
 }
