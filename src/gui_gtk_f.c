@@ -538,7 +538,9 @@ gtk_form_unrealize(GtkWidget *widget)
     static void
 gtk_form_size_request(GtkWidget *widget, GtkRequisition *requisition)
 {
+#ifndef USE_GTK3
     GList *tmp_list;
+#endif
     GtkForm *form;
 
     g_return_if_fail(GTK_IS_FORM(widget));

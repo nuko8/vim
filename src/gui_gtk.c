@@ -214,6 +214,7 @@ static const char * const menu_stock_ids[] =
 #endif
 
 #ifdef USE_GRESOURCE
+# ifndef USE_GTK3
 typedef struct IconNames {
     const char *icon_name;
     const char *file_name;
@@ -235,6 +236,7 @@ static IconNames stock_vim_icons[] = {
     { "vim-window-split-vertical", "stock_vim_window_split_vertical.png" },
     { NULL, NULL }
 };
+# endif
 #endif
 
 #ifndef USE_GRESOURCE
