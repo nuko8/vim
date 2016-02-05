@@ -622,8 +622,6 @@ draw_event(GtkWidget *widget UNUSED,
            cairo_t   *cr,
            gpointer   user_data UNUSED)
 {
-    GdkRectangle rect;
-
     /* Skip this when the GUI isn't set up yet, will redraw later. */
     if (gui.starting)
 	return FALSE;
@@ -1727,7 +1725,10 @@ process_motion_notify(int x, int y, GdkModifierType state)
 
 #if GTK_CHECK_VERSION(3,0,0)
     static GdkWindow *
-gui_gtk_get_pointer(GtkWidget *widget, gint *x, gint *y, GdkModifierType *state)
+gui_gtk_get_pointer(GtkWidget       *widget,
+                    gint            *x,
+                    gint            *y,
+                    GdkModifierType *state UNUSED)
 {
     GdkWindow * const win = gtk_widget_get_window(widget);
     GdkDisplay * const dpy = gdk_window_get_display(win);
@@ -2981,8 +2982,8 @@ drawarea_style_set_cb(GtkWidget	*widget UNUSED,
 #ifdef USE_GTK3
     static gboolean
 drawarea_configure_event_cb(GtkWidget         *widget,
-                            GdkEventConfigure *event,
-                            gpointer           data)
+                            GdkEventConfigure *event UNUSED,
+                            gpointer           data UNUSED)
 {
     if (gui.surface != NULL)
         cairo_surface_destroy(gui.surface);
@@ -6871,9 +6872,10 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
     const int x      = FILL_X(left);
     const int width  = gui.char_width * (right - left + 1) + 1;
     const int height = gui.char_height * (bot - row - num_lines + 1);
-    const cairo_rectangle_int_t rect = { x, y_src, width, height };
 
 #if 0
+    const cairo_rectangle_int_t rect = { x, y_src, width, height };
+
     cairo_surface_t *subsurface = NULL;
     cairo_t *cr = NULL;
 
