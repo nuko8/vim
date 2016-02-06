@@ -385,6 +385,7 @@ typedef struct Gui
     GdkColor	*spcolor;	    /* GDK-styled special color */
 #ifdef GDK_DISABLE_DEPRECATED
     cairo_surface_t *surface;       /* drawarea surface */
+    gboolean         by_signal;     /* cause of draw operation */
 #else
     GdkGC	*text_gc;	    /* cached GC for normal text */
 #endif
