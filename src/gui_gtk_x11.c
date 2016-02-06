@@ -5715,7 +5715,6 @@ draw_glyph_string(int row, int col, int num_cells, int flags,
     {
 #ifdef GDK_DISABLE_DEPRECATED
         set_cairo_source_rgb_from_pixel(cr, gui.bgcolor->pixel);
-        cairo_set_line_width(cr, 1.0);
         cairo_rectangle(cr,
                         FILL_X(col), FILL_Y(row),
                         num_cells * gui.char_width, gui.char_height);
@@ -6482,7 +6481,6 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
     gui_mch_set_fg_color(color);
 
 #ifdef GDK_DISABLE_DEPRECATED
-    cairo_set_line_width(cr, 1.0);
     set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
 #else
     gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
@@ -6526,7 +6524,6 @@ gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
         cairo_t *cr;
 
         cr = cairo_create(gui.surface);
-        cairo_set_line_width(cr, 1.0);
         set_cairo_source_rgb_from_pixel(cr, gui.fgcolor->pixel);
         cairo_rectangle(cr,
 #ifdef FEAT_RIGHTLEFT
