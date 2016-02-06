@@ -6497,12 +6497,6 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
                     i * gui.char_width - 1, gui.char_height - 1);
     cairo_stroke(cr);
     cairo_destroy(cr);
-
-#if 0
-    gtk_widget_queue_draw_area(gui.drawarea,
-            FILL_X(gui.col), FILL_Y(gui.row),
-            i * gui.char_width - 1, gui.char_height - 1);
-#endif
 #else
     gdk_draw_rectangle(gui.drawarea->window, gui.text_gc,
 	    FALSE,
@@ -6543,16 +6537,6 @@ gui_mch_draw_part_cursor(int w, int h, guicolor_T color)
 	    w, h);
         cairo_fill(cr);
         cairo_destroy(cr);
-
-#if 0
-        gtk_widget_queue_draw_area(gui.drawarea,
-#ifdef FEAT_RIGHTLEFT
-	    /* vertical line should be on the right of current point */
-	    CURSOR_BAR_RIGHT ? FILL_X(gui.col + 1) - w :
-#endif
-	    FILL_X(gui.col), FILL_Y(gui.row) + gui.char_height - h,
-	    w, h);
-#endif
     }
 #else
     gdk_gc_set_foreground(gui.text_gc, gui.fgcolor);
