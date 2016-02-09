@@ -368,9 +368,8 @@ messageFromNetbeans(GIOChannel *unused1 UNUSED,
                     gpointer clientData UNUSED)
 {
     channel_read(GPOINTER_TO_INT(clientData));
-    return TRUE; /* assumes the event source isn't removed after this
-                  * function returns.
-                  */
+    return TRUE; /* Return FALSE instead in case the event source is to
+                  * be removed after this function returns. */
 }
 # else
     static void

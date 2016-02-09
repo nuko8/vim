@@ -109,7 +109,7 @@
 #endif
 
 #if defined(FEAT_GUI_GTK) && defined(FEAT_XIM)
-# ifdef USE_GTK3
+# if GTK_CHECK_VERSION(3,0,0)
 #  include <gdk/gdkkeysyms-compat.h>
 # else
 #  include <gdk/gdkkeysyms.h>
@@ -4945,7 +4945,7 @@ xim_init(void)
 #endif
 
     g_return_if_fail(gui.drawarea != NULL);
-#ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
     g_return_if_fail(gtk_widget_get_window(gui.drawarea) != NULL);
 #else
     g_return_if_fail(gui.drawarea->window != NULL);
@@ -4963,7 +4963,7 @@ xim_init(void)
     g_signal_connect(G_OBJECT(xic), "preedit_end",
 		     G_CALLBACK(&im_preedit_end_cb), NULL);
 
-#ifdef GSEAL_ENABLE
+#if GTK_CHECK_VERSION(3,0,0)
     gtk_im_context_set_client_window(xic, gtk_widget_get_window(gui.drawarea));
 #else
     gtk_im_context_set_client_window(xic, gui.drawarea->window);
@@ -5066,20 +5066,20 @@ im_synthesize_keypress(unsigned int keyval, unsigned int state)
 
 #  ifdef HAVE_GTK_MULTIHEAD
     event = (GdkEventKey *)gdk_event_new(GDK_KEY_PRESS);
-#ifdef GSEAL_ENABLE
+#   if GTK_CHECK_VERSION(3,0,0)
     g_object_ref(gtk_widget_get_window(gui.drawarea)); /* unreffed by gdk_event_free() */
-#else
+#   else
     g_object_ref(gui.drawarea->window); /* unreffed by gdk_event_free() */
-#endif
+#   endif
 #  else
     event = (GdkEventKey *)g_malloc0((gulong)sizeof(GdkEvent));
     event->type = GDK_KEY_PRESS;
 #  endif
-#ifdef GSEAL_ENABLE
+#  if GTK_CHECK_VERSION(3,0,0)
     event->window = gtk_widget_get_window(gui.drawarea);
-#else
+#  else
     event->window = gui.drawarea->window;
-#endif
+#  endif
     event->send_event = TRUE;
     event->time = GDK_CURRENT_TIME;
     event->state  = state;

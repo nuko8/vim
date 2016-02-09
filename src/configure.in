@@ -2426,7 +2426,6 @@ AC_DEFUN(AM_PATH_GTK,
 	     sed 's/\([[0-9]]*\)\.\([[0-9]]*\)\.\([[0-9]]*\)/\2/'`
       gtk_micro_version=`$PKG_CONFIG --modversion gtk+-3.0 | \
 	     sed 's/\([[0-9]]*\)\.\([[0-9]]*\)\.\([[0-9]]*\)/\3/'`
-      GTK_CFLAGS="$GTK_CFLAGS -DGTK_DISABLE_SINGLE_INCLUDES -DUSE_GTK3"
     }
     else
       no_gtk=yes
@@ -2665,9 +2664,7 @@ if test -z "$SKIP_GTK3"; then
       GUITYPE=GTK
       AC_SUBST(GTK_LIBNAME)
       AC_DEFINE(HAVE_GTK_MULTIHEAD)
-      AC_DEFINE(GTK_DISABLE_DEPRECATED)
-      AC_DEFINE(GDK_DISABLE_DEPRECATED)
-      AC_DEFINE(GSEAL_ENABLE)
+      AC_DEFINE(USE_GTK3)
     fi
   fi
 fi

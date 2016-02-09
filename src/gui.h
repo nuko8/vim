@@ -359,9 +359,9 @@ typedef struct Gui
 #endif
 
 #ifdef FEAT_GUI_GTK
-#ifndef GDK_DISABLE_DEPRECATED
+# ifndef USE_GTK3
     int		visibility;	    /* Is shell partially/fully obscured? */
-#endif
+# endif
     GdkCursor	*blank_pointer;	    /* Blank pointer */
 
     /* X Resources */
@@ -383,12 +383,12 @@ typedef struct Gui
     GdkColor	*fgcolor;	    /* GDK-styled foreground color */
     GdkColor	*bgcolor;	    /* GDK-styled background color */
     GdkColor	*spcolor;	    /* GDK-styled special color */
-#ifdef GDK_DISABLE_DEPRECATED
+# ifdef USE_GTK3
     cairo_surface_t *surface;       /* drawarea surface */
     gboolean         by_signal;     /* cause of draw operation */
-#else
+# else
     GdkGC	*text_gc;	    /* cached GC for normal text */
-#endif
+# endif
     PangoContext     *text_context; /* the context used for all text */
     PangoFont	     *ascii_font;   /* cached font for ASCII strings */
     PangoGlyphString *ascii_glyphs; /* cached code point -> glyph map */

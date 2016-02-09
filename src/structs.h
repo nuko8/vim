@@ -2734,7 +2734,7 @@ struct VimMenu
 #ifdef FEAT_GUI_GTK
     GtkWidget	*id;		    /* Manage this to enable item */
     GtkWidget	*submenu_id;	    /* If this is submenu, add children here */
-#if !GTK_CHECK_VERSION(3,4,0)
+#if defined(GTK_CHECK_VERSION) && !GTK_CHECK_VERSION(3,4,0)
     GtkWidget	*tearoff_handle;
 #endif
     GtkWidget   *label;		    /* Used by "set wak=" code. */

@@ -9,7 +9,7 @@
 #ifndef __GTK_FORM_H__
 #define __GTK_FORM_H__
 
-#ifdef GTK_DISABLE_SINGLE_INCLUDES
+#ifdef USE_GTK3
 #include <gtk/gtk.h>
 #else
 #include <gdk/gdk.h>
@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 #define GTK_TYPE_FORM		       (gtk_form_get_type ())
-#if defined(GTK_DISABLE_DEPRECATED) || defined(USE_GTK3)
+#if USE_GTK3
 #define GTK_FORM(obj)                  (G_TYPE_CHECK_INSTANCE_CAST((obj), GTK_TYPE_FORM, GtkForm))
 #define GTK_FORM_CLASS(klass)          (G_TYPE_CHECK_CLASS_CAST((klass), GTK_TYPE_FORM, GtkFormClass))
 #define GTK_IS_FORM(obj)               (G_TYPE_CHECK_INSTANCE_TYPE((obj), GTK_TYPE_FORM))
@@ -64,7 +64,7 @@ struct _GtkFormClass
     GtkContainerClass parent_class;
 };
 
-#if defined(GTK_DISABLE_DEPRECATED) || defined(USE_GTK3)
+#ifdef USE_GTK3
 GType gtk_form_get_type(void);
 #else
 GtkType gtk_form_get_type(void);

@@ -11,7 +11,7 @@
 #define GUI_BEVAL_H
 
 #ifdef FEAT_GUI_GTK
-# ifdef GTK_DISABLE_SINGLE_INCLUDES
+# ifdef USE_GTK3
 #  include <gtk/gtk.h>
 # else
 #  include <gtk/gtkwidget.h>

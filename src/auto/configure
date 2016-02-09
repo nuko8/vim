@@ -8886,7 +8886,6 @@ $as_echo_n "checking for GTK - version >= $min_gtk_version... " >&6; }
 	     sed 's/\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\)/\2/'`
       gtk_micro_version=`$PKG_CONFIG --modversion gtk+-3.0 | \
 	     sed 's/\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\)/\3/'`
-      GTK_CFLAGS="$GTK_CFLAGS -DGTK_DISABLE_SINGLE_INCLUDES -DUSE_GTK3"
     }
     else
       no_gtk=yes
@@ -9186,7 +9185,6 @@ $as_echo_n "checking for GTK - version >= $min_gtk_version... " >&6; }
 	     sed 's/\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\)/\2/'`
       gtk_micro_version=`$PKG_CONFIG --modversion gtk+-3.0 | \
 	     sed 's/\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\)/\3/'`
-      GTK_CFLAGS="$GTK_CFLAGS -DGTK_DISABLE_SINGLE_INCLUDES -DUSE_GTK3"
     }
     else
       no_gtk=yes
@@ -9292,11 +9290,7 @@ $as_echo "no" >&6; }
 
       $as_echo "#define HAVE_GTK_MULTIHEAD 1" >>confdefs.h
 
-      $as_echo "#define GTK_DISABLE_DEPRECATED 1" >>confdefs.h
-
-      $as_echo "#define GDK_DISABLE_DEPRECATED 1" >>confdefs.h
-
-      $as_echo "#define GSEAL_ENABLE 1" >>confdefs.h
+      $as_echo "#define USE_GTK3 1" >>confdefs.h
 
     fi
   fi
