@@ -622,23 +622,23 @@ draw_event(GtkWidget *widget UNUSED,
            cairo_t   *cr,
            gpointer   user_data UNUSED)
 {
-    GdkRectangle rect;
-
     /* Skip this when the GUI isn't set up yet, will redraw later. */
     if (gui.starting)
 	return FALSE;
 
-    out_flush();		/* make sure all output has been processed */
-
     cairo_set_source_surface(cr, gui.surface, 0, 0);
     cairo_paint(cr);
-
-    if (gdk_cairo_get_clip_rectangle(cr, &rect))
     {
-        gui.by_signal = TRUE;
-        gui_redraw(rect.x, rect.y, rect.width, rect.height);
-        gui.by_signal = FALSE;
+	GdkRectangle rect;
+
+	if (gdk_cairo_get_clip_rectangle(cr, &rect))
+	{
+	    gui.by_signal = TRUE;
+	    gui_redraw(rect.x, rect.y, rect.width, rect.height);
+	    gui.by_signal = FALSE;
+	}
     }
+    out_flush(); /* Get unprocessed output to drive the GUI */
 
     return FALSE;
 }
@@ -6630,29 +6630,26 @@ gui_mch_clear_block(int row1, int col1, int row2, int col2)
 
 #if GTK_CHECK_VERSION(3,0,0)
     {
+	/* Add one pixel to the far right column in case a double-stroked
+	 * bold glyph may sit there. */
         const GdkRectangle rect = {
             FILL_X(col1), FILL_Y(row1),
             (col2 - col1 + 1) * gui.char_width + (col2 == Columns - 1),
             (row2 - row1 + 1) * gui.char_height
         };
-        GdkWindow * const window = gtk_widget_get_window(gui.drawarea);
-
-        cairo_t *cr = NULL;
-        cairo_pattern_t *pattern = NULL;
-
-        cr = cairo_create(gui.surface);
-        pattern = gdk_window_get_background_pattern(window);
-        if (pattern != NULL)
-            cairo_set_source(cr, pattern);
+        GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+        cairo_t * const cr = cairo_create(gui.surface);
+        cairo_pattern_t * const pat = gdk_window_get_background_pattern(win);
+        if (pat != NULL)
+            cairo_set_source(cr, pat);
         else
-            set_cairo_source_rgb_from_pixel(cr, color.pixel);
+            set_cairo_source_rgb_from_pixel(cr, gui.back_pixel);
         gdk_cairo_rectangle(cr, &rect);
         cairo_fill(cr);
         cairo_destroy(cr);
 
         if (!gui.by_signal)
-            gdk_window_invalidate_rect(gtk_widget_get_window(gui.drawarea),
-                    &rect, TRUE);
+            gdk_window_invalidate_rect(win, &rect, FALSE);
     }
 #else /* !GTK_CHECK_VERSION(3,0,0) */
     gdk_gc_set_foreground(gui.text_gc, &color);
@@ -6674,13 +6671,10 @@ gui_gtk_window_clear(GdkWindow *win)
     const GdkRectangle rect = {
         0, 0, gdk_window_get_width(win), gdk_window_get_height(win)
     };
-    cairo_t *cr = NULL;
-    cairo_pattern_t *pattern = NULL;
-
-    cr = cairo_create(gui.surface);
-    pattern = gdk_window_get_background_pattern(win);
-    if (pattern != NULL)
-        cairo_set_source(cr, pattern);
+    cairo_t * const cr = cairo_create(gui.surface);
+    cairo_pattern_t * const pat = gdk_window_get_background_pattern(win);
+    if (pat != NULL)
+        cairo_set_source(cr, pat);
     else
         set_cairo_source_rgb_from_pixel(cr, gui.back_pixel);
     gdk_cairo_rectangle(cr, &rect);
@@ -6688,7 +6682,7 @@ gui_gtk_window_clear(GdkWindow *win)
     cairo_destroy(cr);
 
     if (!gui.by_signal)
-        gdk_window_invalidate_rect(win, &rect, TRUE);
+        gdk_window_invalidate_rect(win, &rect, FALSE);
 }
 #endif
 
@@ -6745,40 +6739,31 @@ check_copy_area(void)
 
 #if GTK_CHECK_VERSION(3,0,0)
     static void
-gui_gtk_shift_lines(int row, int num_lines, int from, int to)
+gui_gtk_surface_copy_rect(int dest_x, int dest_y,
+	                  int src_x,  int src_y,
+			  int width,  int height)
 {
-    const int y_src  = FILL_Y(from);
-    const int y_dest = FILL_Y(to);
+    cairo_surface_t * const src_surf
+	= cairo_surface_create_similar(gui.surface,
+		cairo_surface_get_content(gui.surface),
+		width, height);
+    cairo_t * const src_cr = cairo_create(src_surf);
 
-    const int left   = gui.scroll_region_left;
-    const int right  = gui.scroll_region_right;
-    const int bot    = gui.scroll_region_bot;
-    const int x      = FILL_X(left);
-    const int width  = gui.char_width * (right - left + 1) + 1;
-    const int height = gui.char_height * (bot - row - num_lines + 1);
+    cairo_surface_t * const dest_surf
+	= cairo_surface_create_for_rectangle(gui.surface,
+		dest_x, dest_y, width, height);
+    cairo_t * const dest_cr = cairo_create(dest_surf);
 
-    cairo_surface_t *subsurface = NULL;
-    cairo_t *cr = NULL;
+    cairo_set_source_surface(src_cr, gui.surface, -src_x, -src_y);
+    cairo_paint(src_cr);
 
-    subsurface =
-        cairo_surface_create_for_rectangle(gui.surface,
-            x, y_dest, width, height);
-    cr = cairo_create(subsurface);
+    cairo_set_source_surface(dest_cr, src_surf, 0.0, 0.0);
+    cairo_paint(dest_cr);
 
-    cairo_set_source_surface(cr, gui.surface, x, y_src);
-    cairo_paint(cr);
-
-    cairo_destroy(cr);
-    cairo_surface_destroy(subsurface);
-
-    if (from > to)
-        gui_clear_block(bot - num_lines + 1, left, bot, right);
-    else
-        gui_clear_block(row, left, row + num_lines - 1, right);
-
-    gui_dont_update_cursor();
-    gui_redraw(x, y_dest, width, height);
-    gui_can_update_cursor();
+    cairo_destroy(dest_cr);
+    cairo_surface_destroy(dest_surf);
+    cairo_destroy(src_cr);
+    cairo_surface_destroy(src_surf);
 }
 #endif
 
@@ -6790,7 +6775,21 @@ gui_gtk_shift_lines(int row, int num_lines, int from, int to)
 gui_mch_delete_lines(int row, int num_lines)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-    gui_gtk_shift_lines(row, num_lines, row + num_lines, row);
+    const int ncols = gui.scroll_region_right - gui.scroll_region_left + 1;
+    const int nrows = gui.scroll_region_bot - row + 1;
+    const int src_nrows = nrows - num_lines;
+
+    gui_gtk_surface_copy_rect(
+	    FILL_X(gui.scroll_region_left), FILL_Y(row),
+	    FILL_X(gui.scroll_region_left), FILL_Y(row + num_lines),
+	    gui.char_width * ncols + 1,     gui.char_height * src_nrows);
+    gui_clear_block(
+	    gui.scroll_region_bot - num_lines + 1, gui.scroll_region_left,
+	    gui.scroll_region_bot,                 gui.scroll_region_right);
+    if (!gui.by_signal)
+	gtk_widget_queue_draw_area(gui.drawarea,
+		FILL_X(gui.scroll_region_left), FILL_Y(row),
+		gui.char_width * ncols + 1,     gui.char_height * nrows);
 #else
     if (gui.visibility == GDK_VISIBILITY_FULLY_OBSCURED)
 	return;			/* Can't see the window */
@@ -6823,7 +6822,21 @@ gui_mch_delete_lines(int row, int num_lines)
 gui_mch_insert_lines(int row, int num_lines)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-    gui_gtk_shift_lines(row, num_lines, row, row + num_lines);
+    const int ncols = gui.scroll_region_right - gui.scroll_region_left + 1;
+    const int nrows = gui.scroll_region_bot - row + 1;
+    const int src_nrows = nrows - num_lines;
+
+    gui_gtk_surface_copy_rect(
+	    FILL_X(gui.scroll_region_left), FILL_Y(row + num_lines),
+	    FILL_X(gui.scroll_region_left), FILL_Y(row),
+	    gui.char_width * ncols + 1,     gui.char_height * src_nrows);
+    gui_mch_clear_block(
+	    row,                 gui.scroll_region_left,
+	    row + num_lines - 1, gui.scroll_region_right);
+    if (!gui.by_signal)
+	gtk_widget_queue_draw_area(gui.drawarea,
+		FILL_X(gui.scroll_region_left), FILL_Y(row),
+		gui.char_width * ncols + 1,     gui.char_height * nrows);
 #else
     if (gui.visibility == GDK_VISIBILITY_FULLY_OBSCURED)
 	return;			/* Can't see the window */
