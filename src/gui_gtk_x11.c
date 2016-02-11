@@ -626,8 +626,11 @@ draw_event(GtkWidget *widget UNUSED,
     if (gui.starting)
 	return FALSE;
 
+    out_flush();		/* make sure all output has been processed */
+
     cairo_set_source_surface(cr, gui.surface, 0, 0);
     cairo_paint(cr);
+#if 0
     {
 	GdkRectangle rect;
 
@@ -638,7 +641,7 @@ draw_event(GtkWidget *widget UNUSED,
 	    gui.by_signal = FALSE;
 	}
     }
-    out_flush(); /* Get unprocessed output to drive the GUI */
+#endif
 
     return FALSE;
 }
