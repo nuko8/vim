@@ -99,6 +99,8 @@ static GdkFilterReturn gtk_form_filter(GdkXEvent *gdk_xevent,
 static GdkFilterReturn gtk_form_main_filter(GdkXEvent *gdk_xevent,
 					    GdkEvent *event,
 					    gpointer data);
+#endif
+#if !GTK_CHECK_VERSION(3,16,0)
 static void gtk_form_set_static_gravity(GdkWindow *window,
 					gboolean use_static);
 #endif
@@ -873,7 +875,11 @@ gtk_form_realize_child(GtkForm *form, GtkFormChild *child)
 
 #if !GTK_CHECK_VERSION(3,16,0)
     if (child->window == NULL) /* might be already set, see above */
+# if GTK_CHECK_VERSION(3,0,0)
+	gtk_form_set_static_gravity(gtk_widget_get_window(child->widget), TRUE);
+# else
 	gtk_form_set_static_gravity(child->widget->window, TRUE);
+# endif
 #endif
 }
 
@@ -1064,7 +1070,9 @@ gtk_form_main_filter(GdkXEvent *gdk_xevent,
     }
     return GDK_FILTER_CONTINUE;
 }
+#endif /* !GTK_CHECK_VERSION(3,0,0) */
 
+#if !GTK_CHECK_VERSION(3,16,0)
     static void
 gtk_form_set_static_gravity(GdkWindow *window, gboolean use_static)
 {
@@ -1072,7 +1080,7 @@ gtk_form_set_static_gravity(GdkWindow *window, gboolean use_static)
      * results in an annoying assertion error message. */
     gdk_window_set_static_gravities(window, use_static);
 }
-#endif /* !GTK_CHECK_VERSION(3,0,0) */
+#endif /* !GTK_CHECK_VERSION(3,16,0) */
 
     void
 gtk_form_move_resize(GtkForm *form, GtkWidget *widget,

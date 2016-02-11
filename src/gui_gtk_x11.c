@@ -1721,13 +1721,13 @@ process_motion_notify(int x, int y, GdkModifierType state)
 gui_gtk_get_pointer(GtkWidget       *widget,
                     gint            *x,
                     gint            *y,
-                    GdkModifierType *state UNUSED)
+                    GdkModifierType *state)
 {
     GdkWindow * const win = gtk_widget_get_window(widget);
     GdkDisplay * const dpy = gdk_window_get_display(win);
     GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
     GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
-    return gdk_window_get_device_position(win, dev , x, y, NULL);
+    return gdk_window_get_device_position(win, dev , x, y, state);
 }
 #endif
 
@@ -2461,7 +2461,7 @@ setup_save_yourself(void)
     Atom    *existing_atoms = NULL;
     int	    count = 0;
 
-#ifdef USE_XSMP
+# ifdef USE_XSMP
     if (xsmp_icefd != -1)
     {
 	/*
@@ -2474,20 +2474,20 @@ setup_save_yourself(void)
 				  local_xsmp_handle_requests, (gpointer)g_io);
     }
     else
-#endif
+# endif
     {
 	/* Fall back to old method */
 
 	/* first get the existing value */
-#if GTK_CHECK_VERSION(3,0,0)
+# if GTK_CHECK_VERSION(3,0,0)
 	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
                     GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
 		    &existing_atoms, &count))
-#else
+# else
 	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 		    GDK_WINDOW_XWINDOW(gui.mainwin->window),
 		    &existing_atoms, &count))
-#endif
+# endif
 	{
 	    Atom	*new_atoms;
 	    Atom	save_yourself_xatom;
@@ -2509,13 +2509,13 @@ setup_save_yourself(void)
 		{
 		    memcpy(new_atoms, existing_atoms, count * sizeof(Atom));
 		    new_atoms[count] = save_yourself_xatom;
-#if GTK_CHECK_VERSION(3,0,0)
+# if GTK_CHECK_VERSION(3,0,0)
 		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
 			    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
-#else
+# else
 		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 			    GDK_WINDOW_XWINDOW(gui.mainwin->window),
-#endif
+# endif
 			    new_atoms, count + 1);
 		    vim_free(new_atoms);
 		}
@@ -2560,13 +2560,13 @@ global_event_filter(GdkXEvent *xev,
 	 * know we are done saving ourselves.  We don't want to be
 	 * restarted, thus set argv to NULL.
 	 */
-#if GTK_CHECK_VERSION(3,0,0)
+# if GTK_CHECK_VERSION(3,0,0)
 	XSetCommand(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
 		    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
-#else
+# else
 	XSetCommand(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 		    GDK_WINDOW_XWINDOW(gui.mainwin->window),
-#endif
+# endif
 		    NULL, 0);
 	return GDK_FILTER_REMOVE;
     }
@@ -2906,16 +2906,30 @@ drawarea_style_set_cb(GtkWidget	*widget UNUSED,
 #if GTK_CHECK_VERSION(3,0,0)
     static gboolean
 drawarea_configure_event_cb(GtkWidget         *widget,
-                            GdkEventConfigure *event UNUSED,
+                            GdkEventConfigure *event,
                             gpointer           data UNUSED)
 {
-    if (gui.surface != NULL)
-        cairo_surface_destroy(gui.surface);
+    static int cur_width = 0;
+    static int cur_height = 0;
 
-    gui.surface = gdk_window_create_similar_surface(gtk_widget_get_window(widget),
-            CAIRO_CONTENT_COLOR_ALPHA,
-            gtk_widget_get_allocated_width(widget),
-            gtk_widget_get_allocated_height(widget));
+    g_return_val_if_fail(event &&
+	    event->width >= 1 && event->height >= 1, TRUE);
+
+    if (event->width == cur_width && event->height == cur_height)
+	return TRUE;
+
+    cur_width = event->width;
+    cur_height = event->height;
+
+    if (gui.surface != NULL)
+	cairo_surface_destroy(gui.surface);
+
+    gui.surface = gdk_window_create_similar_surface(
+	    gtk_widget_get_window(widget),
+	    CAIRO_CONTENT_COLOR_ALPHA,
+	    event->width, event->height);
+
+    gtk_widget_queue_draw(widget);
 
     return TRUE;
 }
@@ -3629,8 +3643,10 @@ gui_mch_init(void)
 #endif
     /* FIXME: Need to install the classic icons and a gtkrc.classic file.
      * The hard part is deciding install locations and the Makefile magic. */
-#if 0
+#if !GTK_CHECK_VERSION(3,0,0)
+# if 0
     gtk_rc_parse("gtkrc");
+# endif
 #endif
 
     /* Initialize values */
@@ -4191,6 +4207,8 @@ gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkRGBA *result)
 gui_mch_new_colors(void)
 {
 #if GTK_CHECK_VERSION(3,0,0)
+    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+
     if (gui.drawarea != NULL && gtk_widget_get_window(gui.drawarea) != NULL)
 #else
     if (gui.drawarea != NULL && gui.drawarea->window != NULL)
@@ -4200,28 +4218,23 @@ gui_mch_new_colors(void)
         GdkRGBA color;
 
         gui_gtk_get_rgb_from_pixel(gui.back_pixel, &color);
-        cairo_pattern_t * const pattern
-            = cairo_pattern_create_rgba(color.red,
-                                        color.green,
-                                        color.blue,
-                                        color.alpha);
-        if (pattern != NULL)
-        {
-            gdk_window_set_background_pattern(gtk_widget_get_window(gui.drawarea),
-                                              pattern);
-            cairo_pattern_destroy(pattern);
-        }
-        else
-        {
-            gdk_window_set_background_rgba(gtk_widget_get_window(gui.drawarea),
-                                           &color);
-        }
+	{
+	    cairo_pattern_t * const pat = cairo_pattern_create_rgba(
+		    color.red, color.green, color.blue, color.alpha);
+	    if (pat != NULL)
+	    {
+		gdk_window_set_background_pattern(win, pat);
+		cairo_pattern_destroy(pat);
+	    }
+	    else
+		gdk_window_set_background_rgba(win, &color);
+	}
 #else /* !GTK_CHECK_VERSION(3,4,0) */
 	GdkColor color = { 0, 0, 0, 0 };
 
 	color.pixel = gui.back_pixel;
 # if GTK_CHECK_VERSION(3,0,0)
-	gdk_window_set_background(gtk_widget_get_window(gui.drawarea), &color);
+	gdk_window_set_background(win, &color);
 # else
 	gdk_window_set_background(gui.drawarea->window, &color);
 # endif
@@ -4561,7 +4574,8 @@ gui_mch_set_winpos(int x, int y)
     gtk_window_move(GTK_WINDOW(gui.mainwin), x, y);
 }
 
-#if 0
+#if !GTK_CHECK_VERSION(3,0,0)
+# if 0
 static int resize_idle_installed = FALSE;
 /*
  * Idle handler to force resize.  Used by gui_mch_set_shellsize() to ensure
@@ -4597,7 +4611,8 @@ force_shell_resize_idle(gpointer data)
     resize_idle_installed = FALSE;
     return FALSE; /* don't call me again */
 }
-#endif
+# endif
+#endif /* !GTK_CHECK_VERSION(3,0,0) */
 
 /*
  * Return TRUE if the main window is maximized.
@@ -4668,14 +4683,16 @@ gui_mch_set_shellsize(int width, int height,
     else
 	update_window_manager_hints(width, height);
 
-# if 0
+# if !GTK_CHECK_VERSION(3,0,0)
+#  if 0
     if (!resize_idle_installed)
     {
 	g_idle_add_full(GDK_PRIORITY_EVENTS + 10,
 			&force_shell_resize_idle, NULL, NULL);
 	resize_idle_installed = TRUE;
     }
-# endif
+#  endif
+# endif /* !GTK_CHECK_VERSION(3,0,0) */
     /*
      * Wait until all events are processed to prevent a crash because the
      * real size of the drawing area doesn't reflect Vim's internal ideas.
@@ -5734,7 +5751,7 @@ gui_gtk2_draw_string(int row, int col, char_u *s, int len, int flags)
     char_u		*sp, *bp;
     int			plen;
 #if GTK_CHECK_VERSION(3,0,0)
-    cairo_t            *cr;
+    cairo_t             *cr;
 #endif
 
 #if GTK_CHECK_VERSION(3,0,0)
@@ -6022,7 +6039,7 @@ skipitall:
     cairo_destroy(cr);
     if (!gui.by_signal)
         gdk_window_invalidate_rect(gtk_widget_get_window(gui.drawarea),
-		&area, TRUE);
+		&area, FALSE);
 #else
     gdk_gc_set_clip_rectangle(gui.text_gc, NULL);
 #endif
@@ -6379,8 +6396,8 @@ gui_mch_draw_hollow_cursor(guicolor_T color)
     cairo_set_line_width(cr, 1.0);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
     cairo_rectangle(cr,
-                    FILL_X(gui.col) + 0.5, FILL_Y(gui.row) + 0.5,
-                    i * gui.char_width - 1, gui.char_height - 1);
+	    FILL_X(gui.col) + 0.5, FILL_Y(gui.row) + 0.5,
+	    i * gui.char_width - 1, gui.char_height - 1);
     cairo_stroke(cr);
     cairo_destroy(cr);
 #else
@@ -6617,16 +6634,17 @@ gui_mch_flush(void)
     void
 gui_mch_clear_block(int row1, int col1, int row2, int col2)
 {
-    GdkColor color;
-
 #if GTK_CHECK_VERSION(3,0,0)
     if (gtk_widget_get_window(gui.drawarea) == NULL)
+	return;
 #else
+    GdkColor color;
+
     if (gui.drawarea->window == NULL)
-#endif
 	return;
 
     color.pixel = gui.back_pixel;
+#endif
 
 #if GTK_CHECK_VERSION(3,0,0)
     {
@@ -7020,10 +7038,14 @@ gui_mch_enable_scrollbar(scrollbar_T *sb, int flag)
     if (sb->id == NULL)
 	return;
 
+#if GTK_CHECK_VERSION(3,0,0)
+    gtk_widget_set_visible(sb->id, flag);
+#else
     if (flag)
 	gtk_widget_show(sb->id);
     else
 	gtk_widget_hide(sb->id);
+#endif
 
     update_window_manager_hints(0, 0);
 }
