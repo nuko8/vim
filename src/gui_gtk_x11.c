@@ -6138,68 +6138,15 @@ gui_mch_beep(void)
 gui_mch_flash(int msec)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-    GdkWindow *drawarea;
-    cairo_t *cr;
-    gint width, height;
-    cairo_surface_t *bg_surf;
-    cairo_surface_t *fg_surf;
-    cairo_t *bg_cr;
-    cairo_t *fg_cr;
+    /* TODO Replace GdkGC with Cairo */
+    (void)msec;
 #else
     GdkGCValues	values;
     GdkGC	*invert_gc;
-#endif
 
-#if GTK_CHECK_VERSION(3,0,0)
-    if (gtk_widget_get_window(gui.drawarea) == NULL)
-#else
     if (gui.drawarea->window == NULL)
-#endif
 	return;
 
-#if GTK_CHECK_VERSION(3,0,0)
-    drawarea = gtk_widget_get_window(gui.drawarea);
-
-    cr = cairo_create(gui.surface);
-    width = gdk_window_get_width(drawarea);
-    height = gdk_window_get_height(drawarea);
-
-    bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
-                                           CAIRO_CONTENT_COLOR,
-                                           width, height);
-    fg_surf = cairo_surface_create_similar(cairo_get_target(cr),
-                                           CAIRO_CONTENT_COLOR,
-                                           width, height);
-
-    bg_cr = cairo_create(bg_surf);
-    set_cairo_source_rgb_from_pixel(bg_cr, gui.norm_pixel ^ gui.back_pixel);
-    cairo_rectangle(
-        bg_cr,
-        0,
-        0,
-        FILL_X((int)Columns) + gui.border_offset,
-        FILL_Y((int)Rows) + gui.border_offset
-    );
-    cairo_fill(bg_cr);
-
-    fg_cr = cairo_create(fg_surf);
-    set_cairo_source_rgb_from_pixel(fg_cr, gui.norm_pixel ^ gui.back_pixel);
-    cairo_rectangle(
-        fg_cr,
-        0,
-        0,
-        FILL_X((int)Columns) + gui.border_offset,
-        FILL_Y((int)Rows) + gui.border_offset
-    );
-    cairo_fill(fg_cr);
-
-    cairo_set_operator(fg_cr, CAIRO_OPERATOR_XOR);
-    cairo_set_source_surface(fg_cr, bg_surf, 0.0, 0.0);
-    cairo_paint(fg_cr);
-
-    cairo_set_source_surface(cr, fg_surf, 0.0, 0.0);
-    cairo_paint(cr);
-#else /* !GTK_CHECK_VERSION(3,0,0) */
     values.foreground.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.background.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.function = GDK_XOR;
@@ -6222,23 +6169,10 @@ gui_mch_flash(int msec)
 		       0, 0,
 		       FILL_X((int)Columns) + gui.border_offset,
 		       FILL_Y((int)Rows) + gui.border_offset);
-#endif /* !GTK_CHECK_VERSION(3,0,0) */
 
     gui_mch_flush();
     ui_delay((long)msec, TRUE);	/* wait so many msec */
 
-#if GTK_CHECK_VERSION(3,0,0)
-    cairo_set_source_surface(cr, fg_surf, 0.0, 0.0);
-    cairo_paint(cr);
-
-    cairo_destroy(fg_cr);
-    cairo_destroy(bg_cr);
-    cairo_surface_destroy(fg_surf);
-    cairo_surface_destroy(bg_surf);
-    cairo_destroy(cr);
-
-    gtk_widget_queue_draw(gui.drawarea);
-#else
     gdk_draw_rectangle(gui.drawarea->window, invert_gc,
 		       TRUE,
 		       0, 0,
@@ -6256,76 +6190,15 @@ gui_mch_flash(int msec)
 gui_mch_invert_rectangle(int r, int c, int nr, int nc)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-    GdkWindow *drawarea;
-    cairo_t *cr;
-    gint width, height;
-    cairo_surface_t *bg_surf;
-    cairo_surface_t *fg_surf;
-    cairo_t *bg_cr;
-    cairo_t *fg_cr;
+    /* TODO Replace GdkGC with Cairo */
+    (void)r; (void)c; (void)nr; (void)nc;
 #else
     GdkGCValues values;
     GdkGC *invert_gc;
-#endif
 
-#if GTK_CHECK_VERSION(3,0,0)
-    if (gtk_widget_get_window(gui.drawarea) == NULL)
-#else
     if (gui.drawarea->window == NULL)
-#endif
 	return;
 
-#if GTK_CHECK_VERSION(3,0,0)
-    drawarea = gtk_widget_get_window(gui.drawarea);
-
-    cr = cairo_create(gui.surface);
-    width = gdk_window_get_width(drawarea);
-    height = gdk_window_get_height(drawarea);
-
-    bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
-                                           CAIRO_CONTENT_COLOR,
-                                           width, height);
-    fg_surf = cairo_surface_create_similar(cairo_get_target(cr),
-                                           CAIRO_CONTENT_COLOR,
-                                           width, height);
-
-    bg_cr = cairo_create(bg_surf);
-    set_cairo_source_rgb_from_pixel(bg_cr, gui.norm_pixel ^ gui.back_pixel);
-    cairo_rectangle(
-        bg_cr,
-        FILL_X(c),
-        FILL_Y(r),
-        (nc) * gui.char_width,
-        (nr) * gui.char_height
-    );
-    cairo_fill(bg_cr);
-
-    fg_cr = cairo_create(bg_surf);
-    set_cairo_source_rgb_from_pixel(fg_cr, gui.norm_pixel ^ gui.back_pixel);
-    cairo_rectangle(
-        fg_cr,
-        FILL_X(c),
-        FILL_Y(r),
-        (nc) * gui.char_width,
-        (nr) * gui.char_height
-    );
-    cairo_fill(fg_cr);
-
-    cairo_set_operator(fg_cr, CAIRO_OPERATOR_XOR);
-    cairo_set_source_surface(fg_cr, bg_surf, 0.0, 0.0);
-    cairo_paint(fg_cr);
-
-    cairo_set_source_surface(cr, fg_surf, 0.0, 0.0);
-    cairo_paint(cr);
-
-    cairo_destroy(fg_cr);
-    cairo_destroy(bg_cr);
-    cairo_surface_destroy(bg_surf);
-    cairo_surface_destroy(fg_surf);
-    cairo_destroy(cr);
-
-    gtk_widget_queue_draw(gui.drawarea);
-#else /* !GTK_CHECK_VERSION(3,0,0) */
     values.foreground.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.background.pixel = gui.norm_pixel ^ gui.back_pixel;
     values.function = GDK_XOR;
@@ -6341,7 +6214,7 @@ gui_mch_invert_rectangle(int r, int c, int nr, int nc)
 		       FILL_X(c), FILL_Y(r),
 		       (nc) * gui.char_width, (nr) * gui.char_height);
     gdk_gc_destroy(invert_gc);
-#endif /* !GTK_CHECK_VERSION(3,0,0) */
+#endif
 }
 
 /*
