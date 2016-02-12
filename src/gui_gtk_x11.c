@@ -6637,27 +6637,17 @@ gui_gtk_surface_copy_rect(int dest_x, int dest_y,
 	                  int src_x,  int src_y,
 			  int width,  int height)
 {
-    cairo_surface_t * const src_surf
-	= cairo_surface_create_similar(gui.surface,
-		cairo_surface_get_content(gui.surface),
-		width, height);
-    cairo_t * const src_cr = cairo_create(src_surf);
+    cairo_t * const cr = cairo_create(gui.surface);
 
-    cairo_surface_t * const dest_surf
-	= cairo_surface_create_for_rectangle(gui.surface,
-		dest_x, dest_y, width, height);
-    cairo_t * const dest_cr = cairo_create(dest_surf);
+    cairo_rectangle(cr, dest_x, dest_y, width, height);
+    cairo_clip(cr);
+    cairo_push_group(cr);
+    cairo_set_source_surface(cr, gui.surface, dest_x - src_x, dest_y - src_y);
+    cairo_paint(cr);
+    cairo_pop_group_to_source(cr);
+    cairo_paint(cr);
 
-    cairo_set_source_surface(src_cr, gui.surface, -src_x, -src_y);
-    cairo_paint(src_cr);
-
-    cairo_set_source_surface(dest_cr, src_surf, 0.0, 0.0);
-    cairo_paint(dest_cr);
-
-    cairo_destroy(dest_cr);
-    cairo_surface_destroy(dest_surf);
-    cairo_destroy(src_cr);
-    cairo_surface_destroy(src_surf);
+    cairo_destroy(cr);
 }
 #endif
 
