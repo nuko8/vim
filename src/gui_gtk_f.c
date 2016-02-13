@@ -657,6 +657,35 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
     static gboolean
 gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 {
+    GList *tmp_list;
+    GtkForm *form;
+
+    g_return_val_if_fail(GTK_IS_FORM(widget), FALSE);
+
+    form = GTK_FORM(widget);
+
+    for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
+    {
+	GtkFormChild	*formchild = tmp_list->data;
+	GtkWidget	*child	   = formchild->widget;
+
+	if (!gtk_widget_get_has_window(child) &&
+		gtk_cairo_should_draw_window(cr, formchild->window))
+	{
+	    /* To get gtk_widget_draw() to work, it is required to call
+	     * gtk_widget_size_allocate() in advance with a well-posed
+	     * allocation for a given child widget in order to set a
+	     * certain private GtkWidget variable, called
+	     * widget->priv->alloc_need, to the proper value; othewise,
+	     * gtk_widget_draw() fails and the relevant scrollbar won't
+	     * appear on the screen.
+	     *
+	     * Calling gtk_form_position_child() like this is one of ways
+	     * to make sure of that. */
+	    gtk_form_position_child(form, formchild, TRUE);
+	}
+    }
+
     return GTK_WIDGET_CLASS(gtk_form_parent_class)->draw(widget, cr);
 }
 #else /* !GTK_CHECK_VERSION(3,0,0) */
