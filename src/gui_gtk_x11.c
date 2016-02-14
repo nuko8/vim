@@ -617,8 +617,20 @@ visibility_event(GtkWidget *widget UNUSED,
  * Redraw the corresponding portions of the screen.
  */
 #if GTK_CHECK_VERSION(3,0,0)
+static gboolean is_key_pressed = FALSE;
+static int gui_gtk_is_blink_on(void);
+static void gui_gtk_window_clear(GdkWindow *win);
+
+    static void
+gui_gtk_redraw(int x, int y, int width, int height)
+{
+    gui_redraw_block(Y_2_ROW(y), X_2_COL(x),
+	    Y_2_ROW(y + height - 1), X_2_COL(x + width - 1),
+	    GUI_MON_NOCLEAR);
+}
+
     static gboolean
-draw_event(GtkWidget *widget UNUSED,
+draw_event(GtkWidget *widget,
            cairo_t   *cr,
            gpointer   user_data UNUSED)
 {
@@ -627,21 +639,40 @@ draw_event(GtkWidget *widget UNUSED,
 	return FALSE;
 
     out_flush();		/* make sure all output has been processed */
+				/* For GTK+ 3, induce other draw events. */
 
     cairo_set_source_surface(cr, gui.surface, 0, 0);
-    cairo_paint(cr);
-#if 0
-    {
-	GdkRectangle rect;
 
-	if (gdk_cairo_get_clip_rectangle(cr, &rect))
+    /* Draw the window without the cursor. */
+    gui.by_signal = TRUE;
+    {
+
+	gui_gtk_window_clear(gtk_widget_get_window(widget));
+
+	cairo_rectangle_list_t * const list
+	    = cairo_copy_clip_rectangle_list(cr);
+	if (list->status != CAIRO_STATUS_CLIP_NOT_REPRESENTABLE)
 	{
-	    gui.by_signal = TRUE;
-	    gui_redraw(rect.x, rect.y, rect.width, rect.height);
-	    gui.by_signal = FALSE;
+	    int i;
+	    for (i = 0; i < list->num_rectangles; i++)
+	    {
+		const cairo_rectangle_t rect = list->rectangles[i];
+		gui_gtk_redraw(rect.x, rect.y, rect.width, rect.height);
+	    }
 	}
+	cairo_rectangle_list_destroy(list);
+
+	cairo_paint(cr);
     }
-#endif
+    gui.by_signal = FALSE;
+
+    /* Add the cursor to the window if necessary.*/
+    /* TODO: Reduce CPU usage. 10% for idle is too much. */
+    if (gui_gtk_is_blink_on() || is_key_pressed || gui.in_focus == FALSE)
+    {
+	gui_update_cursor(TRUE, TRUE);
+	cairo_paint(cr);
+    }
 
     return FALSE;
 }
@@ -731,6 +762,14 @@ static long_u blink_waittime = 700;
 static long_u blink_ontime = 400;
 static long_u blink_offtime = 250;
 static guint blink_timer = 0;
+
+#if GTK_CHECK_VERSION(3,0,0)
+    static int
+gui_gtk_is_blink_on(void)
+{
+    return blink_state == BLINK_ON;
+}
+#endif
 
     void
 gui_mch_set_blinking(long waittime, long on, long off)
@@ -1019,6 +1058,11 @@ key_press_event(GtkWidget *widget UNUSED,
     guint	state;
     char_u	*s, *d;
 
+#if GTK_CHECK_VERSION(3,0,0)
+    is_key_pressed = TRUE;
+    gui_mch_stop_blink();
+#endif
+
     gui.event_time = event->time;
     key_sym = event->keyval;
     state = event->state;
@@ -1208,12 +1252,17 @@ key_press_event(GtkWidget *widget UNUSED,
     return TRUE;
 }
 
-#if defined(FEAT_XIM)
+#if defined(FEAT_XIM) || GTK_CHECK_VERSION(3,0,0)
     static gboolean
 key_release_event(GtkWidget *widget UNUSED,
 		  GdkEventKey *event,
 		  gpointer data UNUSED)
 {
+#if GTK_CHECK_VERSION(3,0,0)
+    is_key_pressed = FALSE;
+    gui_mch_start_blink();
+#endif
+#if defined(FEAT_XIM)
     gui.event_time = event->time;
     /*
      * GTK+ 2 input methods may do fancy stuff on key release events too.
@@ -1221,6 +1270,9 @@ key_release_event(GtkWidget *widget UNUSED,
      * by holding down CTRL-SHIFT and typing hexadecimal digits.
      */
     return xim_queue_key_press_event(event, FALSE);
+#else
+    return TRUE;
+#endif
 }
 #endif
 
@@ -3970,7 +4022,7 @@ gui_mch_init(void)
 		       "key_press_event",
 		       GTK_SIGNAL_FUNC(key_press_event), NULL);
 #endif
-#if defined(FEAT_XIM)
+#if defined(FEAT_XIM) || GTK_CHECK_VERSION(3,0,0)
     /* Also forward key release events for the benefit of GTK+ 2 input
      * modules.  Try CTRL-SHIFT-xdigits to enter a Unicode code point. */
     g_signal_connect((gtk_socket_id == 0) ? G_OBJECT(gui.mainwin)
@@ -6670,10 +6722,13 @@ gui_mch_delete_lines(int row, int num_lines)
     gui_clear_block(
 	    gui.scroll_region_bot - num_lines + 1, gui.scroll_region_left,
 	    gui.scroll_region_bot,                 gui.scroll_region_right);
+    gui_gtk_redraw(
+	    FILL_X(gui.scroll_region_left), FILL_Y(row),
+	    gui.char_width * ncols + 1,     gui.char_height * nrows);
     if (!gui.by_signal)
 	gtk_widget_queue_draw_area(gui.drawarea,
 		FILL_X(gui.scroll_region_left), FILL_Y(row),
-		gui.char_width * ncols + 1,     gui.char_height * nrows);
+		gui.char_width * ncols + 1,	gui.char_height * nrows);
 #else
     if (gui.visibility == GDK_VISIBILITY_FULLY_OBSCURED)
 	return;			/* Can't see the window */
@@ -6717,10 +6772,13 @@ gui_mch_insert_lines(int row, int num_lines)
     gui_mch_clear_block(
 	    row,                 gui.scroll_region_left,
 	    row + num_lines - 1, gui.scroll_region_right);
+    gui_gtk_redraw(
+	    FILL_X(gui.scroll_region_left), FILL_Y(row),
+	    gui.char_width * ncols + 1,     gui.char_height * nrows);
     if (!gui.by_signal)
 	gtk_widget_queue_draw_area(gui.drawarea,
 		FILL_X(gui.scroll_region_left), FILL_Y(row),
-		gui.char_width * ncols + 1,     gui.char_height * nrows);
+		gui.char_width * ncols + 1,	gui.char_height * nrows);
 #else
     if (gui.visibility == GDK_VISIBILITY_FULLY_OBSCURED)
 	return;			/* Can't see the window */
