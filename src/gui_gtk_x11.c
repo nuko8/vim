@@ -629,6 +629,13 @@ gui_gtk_redraw(int x, int y, int width, int height)
 	    GUI_MON_NOCLEAR);
 }
 
+    static void
+gui_gtk_update_cursor(void)
+{
+    /* TODO: Reduce CPU usage. 10% for idle is too much. */
+    gui_update_cursor(TRUE, TRUE);
+}
+
     static gboolean
 draw_event(GtkWidget *widget,
            cairo_t   *cr,
@@ -646,7 +653,6 @@ draw_event(GtkWidget *widget,
     /* Draw the window without the cursor. */
     gui.by_signal = TRUE;
     {
-
 	gui_gtk_window_clear(gtk_widget_get_window(widget));
 
 	cairo_rectangle_list_t * const list
@@ -667,10 +673,9 @@ draw_event(GtkWidget *widget,
     gui.by_signal = FALSE;
 
     /* Add the cursor to the window if necessary.*/
-    /* TODO: Reduce CPU usage. 10% for idle is too much. */
     if (gui_gtk_is_blink_on() || is_key_pressed || gui.in_focus == FALSE)
     {
-	gui_update_cursor(TRUE, TRUE);
+	gui_gtk_update_cursor();
 	cairo_paint(cr);
     }
 
