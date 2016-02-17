@@ -294,6 +294,9 @@ gtk_form_class_init(GtkFormClass *klass)
     static void
 gtk_form_init(GtkForm *form)
 {
+#if GTK_CHECK_VERSION(3,0,0)
+    gtk_widget_set_has_window(GTK_WIDGET(form), TRUE);
+#endif
     form->children = NULL;
 
 #if !GTK_CHECK_VERSION(3,0,0)
@@ -350,7 +353,9 @@ gtk_form_realize(GtkWidget *widget)
 #endif
     attributes.wclass = GDK_INPUT_OUTPUT;
     attributes.visual = gtk_widget_get_visual(widget);
-#if !GTK_CHECK_VERSION(3,0,0)
+#if GTK_CHECK_VERSION(3,0,0)
+    attributes.event_mask = gtk_widget_get_events(widget);
+#else
     attributes.colormap = gtk_widget_get_colormap(widget);
     attributes.event_mask = GDK_VISIBILITY_NOTIFY_MASK;
 #endif
@@ -672,6 +677,9 @@ gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 	if (!gtk_widget_get_has_window(child) &&
 		gtk_cairo_should_draw_window(cr, formchild->window))
 	{
+	    GtkStyleContext *sctx = NULL;
+	    GtkAllocation    allocation;
+
 	    /* To get gtk_widget_draw() to work, it is required to call
 	     * gtk_widget_size_allocate() in advance with a well-posed
 	     * allocation for a given child widget in order to set a
@@ -683,6 +691,11 @@ gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 	     * Calling gtk_form_position_child() like this is one of ways
 	     * to make sure of that. */
 	    gtk_form_position_child(form, formchild, TRUE);
+
+	    sctx = gtk_widget_get_style_context(child);
+	    gtk_widget_get_allocation(child, &allocation);
+	    gtk_render_background(sctx, cr, 0, 0,
+		    allocation.width, allocation.height);
 	}
     }
 
@@ -754,6 +767,9 @@ gtk_form_remove(GtkContainer *container, GtkWidget *widget)
 
     if (tmp_list)
     {
+#if GTK_CHECK_VERSION(3,0,0)
+	const gboolean was_visible = gtk_widget_get_visible(widget);
+#endif
 	if (child->window)
 	{
 #if GTK_CHECK_VERSION(3,0,0)
@@ -775,7 +791,10 @@ gtk_form_remove(GtkContainer *container, GtkWidget *widget)
 	    gdk_window_destroy(child->window);
 	}
 	gtk_widget_unparent(widget);
-
+#if GTK_CHECK_VERSION(3,0,0)
+	if (was_visible)
+	    gtk_widget_queue_resize(GTK_WIDGET(container));
+#endif
 	form->children = g_list_remove_link(form->children, tmp_list);
 	g_list_free_1(tmp_list);
 	g_free(child);
@@ -860,7 +879,12 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 				       &attributes, attributes_mask);
 	gdk_window_set_user_data(child->window, widget);
 
-#if !GTK_CHECK_VERSION(3,0,0)
+#if GTK_CHECK_VERSION(3,18,0)
+	/* Do nothing */
+#elif GTK_CHECK_VERSION(3,0,0)
+	gtk_style_context_set_background(gtk_widget_get_style_context(widget),
+		child->window);
+#else
 	gtk_style_set_background(widget->style,
 				 child->window,
 				 GTK_STATE_NORMAL);
