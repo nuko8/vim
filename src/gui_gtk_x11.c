@@ -618,11 +618,12 @@ visibility_event(GtkWidget *widget UNUSED,
  */
 #if GTK_CHECK_VERSION(3,0,0)
 static gboolean is_key_pressed = FALSE;
-static int gui_gtk_is_blink_on(void);
+static gboolean gui_gtk_is_blink_on(void);
+static gboolean gui_gtk_is_no_blink(void);
 static void gui_gtk_window_clear(GdkWindow *win);
 
     static void
-gui_gtk_redraw(int x, int y, int width, int height)
+gui_gtk3_redraw(int x, int y, int width, int height)
 {
     gui_redraw_block(Y_2_ROW(y), X_2_COL(x),
 	    Y_2_ROW(y + height - 1), X_2_COL(x + width - 1),
@@ -630,10 +631,26 @@ gui_gtk_redraw(int x, int y, int width, int height)
 }
 
     static void
-gui_gtk_update_cursor(void)
+gui_gtk3_update_cursor(cairo_t *cr)
 {
-    /* TODO: Reduce CPU usage. 10% for idle is too much. */
-    gui_update_cursor(TRUE, TRUE);
+    if (gui.row == gui.cursor_row)
+    {
+	gui.by_signal = TRUE;
+	gui_update_cursor(TRUE, TRUE);
+	gui.by_signal = FALSE;
+	cairo_paint(cr);
+    }
+}
+
+    static gboolean
+gui_gtk3_should_draw_cursor(void)
+{
+    unsigned int cond = 0;
+    cond |= gui_gtk_is_blink_on();
+    cond |= is_key_pressed;
+    cond |= gui.in_focus == FALSE;
+    cond |= gui_gtk_is_no_blink();
+    return  cond;
 }
 
     static gboolean
@@ -646,7 +663,7 @@ draw_event(GtkWidget *widget,
 	return FALSE;
 
     out_flush();		/* make sure all output has been processed */
-				/* For GTK+ 3, induce other draw events. */
+				/* for GTK+ 3, may induce other draw events. */
 
     cairo_set_source_surface(cr, gui.surface, 0, 0);
 
@@ -663,7 +680,7 @@ draw_event(GtkWidget *widget,
 	    for (i = 0; i < list->num_rectangles; i++)
 	    {
 		const cairo_rectangle_t rect = list->rectangles[i];
-		gui_gtk_redraw(rect.x, rect.y, rect.width, rect.height);
+		gui_gtk3_redraw(rect.x, rect.y, rect.width, rect.height);
 	    }
 	}
 	cairo_rectangle_list_destroy(list);
@@ -673,11 +690,8 @@ draw_event(GtkWidget *widget,
     gui.by_signal = FALSE;
 
     /* Add the cursor to the window if necessary.*/
-    if (gui_gtk_is_blink_on() || is_key_pressed || gui.in_focus == FALSE)
-    {
-	gui_gtk_update_cursor();
-	cairo_paint(cr);
-    }
+    if (gui_gtk3_should_draw_cursor())
+	gui_gtk3_update_cursor(cr);
 
     return FALSE;
 }
@@ -769,10 +783,16 @@ static long_u blink_offtime = 250;
 static guint blink_timer = 0;
 
 #if GTK_CHECK_VERSION(3,0,0)
-    static int
+    static gboolean
 gui_gtk_is_blink_on(void)
 {
     return blink_state == BLINK_ON;
+}
+
+    static gboolean
+gui_gtk_is_no_blink(void)
+{
+    return blink_waittime == 0 || blink_ontime == 0 || blink_offtime == 0;
 }
 #endif
 
@@ -6727,7 +6747,7 @@ gui_mch_delete_lines(int row, int num_lines)
     gui_clear_block(
 	    gui.scroll_region_bot - num_lines + 1, gui.scroll_region_left,
 	    gui.scroll_region_bot,                 gui.scroll_region_right);
-    gui_gtk_redraw(
+    gui_gtk3_redraw(
 	    FILL_X(gui.scroll_region_left), FILL_Y(row),
 	    gui.char_width * ncols + 1,     gui.char_height * nrows);
     if (!gui.by_signal)
@@ -6777,7 +6797,7 @@ gui_mch_insert_lines(int row, int num_lines)
     gui_mch_clear_block(
 	    row,                 gui.scroll_region_left,
 	    row + num_lines - 1, gui.scroll_region_right);
-    gui_gtk_redraw(
+    gui_gtk3_redraw(
 	    FILL_X(gui.scroll_region_left), FILL_Y(row),
 	    gui.char_width * ncols + 1,     gui.char_height * nrows);
     if (!gui.by_signal)
