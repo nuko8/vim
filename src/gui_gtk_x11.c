@@ -670,10 +670,11 @@ draw_event(GtkWidget *widget,
     /* Draw the window without the cursor. */
     gui.by_signal = TRUE;
     {
+	cairo_rectangle_list_t *list = NULL;
+
 	gui_gtk_window_clear(gtk_widget_get_window(widget));
 
-	cairo_rectangle_list_t * const list
-	    = cairo_copy_clip_rectangle_list(cr);
+	list = cairo_copy_clip_rectangle_list(cr);
 	if (list->status != CAIRO_STATUS_CLIP_NOT_REPRESENTABLE)
 	{
 	    int i;
