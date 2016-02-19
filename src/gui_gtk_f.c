@@ -148,7 +148,9 @@ gtk_form_put(GtkForm	*form,
     child->window = NULL;
     child->x = x;
     child->y = y;
-#if !GTK_CHECK_VERSION(3,0,0)
+#if GTK_CHECK_VERSION(3,0,0)
+    gtk_widget_set_size_request(child->widget, -1, -1);
+#else
     child->widget->requisition.width = 0;
     child->widget->requisition.height = 0;
 #endif
@@ -394,7 +396,18 @@ gtk_form_realize(GtkWidget *widget)
     gtk_form_set_static_gravity(form->bin_window, TRUE);
 #endif
 
-#if !GTK_CHECK_VERSION(3,0,0)
+#if GTK_CHECK_VERSION(3,0,0)
+    {
+	GtkStyleContext * const sctx = gtk_widget_get_style_context(widget);
+
+	gtk_style_context_add_class(sctx, "gtk-form");
+	gtk_style_context_set_state(sctx, GTK_STATE_FLAG_NORMAL);
+# if !GTK_CHECK_VERSION(3,18,0)
+	gtk_style_context_set_background(sctx, gtk_widget_get_window(widget));
+	gtk_style_context_set_background(sctx, form->bin_window);
+# endif
+    }
+#else
     widget->style = gtk_style_attach(widget->style, widget->window);
     gtk_style_set_background(widget->style, widget->window, GTK_STATE_NORMAL);
     gtk_style_set_background(widget->style, form->bin_window, GTK_STATE_NORMAL);
@@ -659,16 +672,26 @@ gtk_form_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 }
 
 #if GTK_CHECK_VERSION(3,0,0)
+    static void
+gtk_form_render_background(GtkWidget *widget, cairo_t *cr)
+{
+    gtk_render_background(gtk_widget_get_style_context(widget), cr,
+			  0, 0,
+			  gtk_widget_get_allocated_width(widget),
+			  gtk_widget_get_allocated_height(widget));
+}
+
     static gboolean
 gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 {
-    GList *tmp_list;
-    GtkForm *form;
+    GList   *tmp_list = NULL;
+    GtkForm *form     = NULL;
 
     g_return_val_if_fail(GTK_IS_FORM(widget), FALSE);
 
-    form = GTK_FORM(widget);
+    gtk_form_render_background(widget, cr);
 
+    form = GTK_FORM(widget);
     for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
     {
 	GtkFormChild	*formchild = tmp_list->data;
@@ -677,9 +700,6 @@ gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 	if (!gtk_widget_get_has_window(child) &&
 		gtk_cairo_should_draw_window(cr, formchild->window))
 	{
-	    GtkStyleContext *sctx = NULL;
-	    GtkAllocation    allocation;
-
 	    /* To get gtk_widget_draw() to work, it is required to call
 	     * gtk_widget_size_allocate() in advance with a well-posed
 	     * allocation for a given child widget in order to set a
@@ -692,10 +712,7 @@ gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 	     * to make sure of that. */
 	    gtk_form_position_child(form, formchild, TRUE);
 
-	    sctx = gtk_widget_get_style_context(child);
-	    gtk_widget_get_allocation(child, &allocation);
-	    gtk_render_background(sctx, cr, 0, 0,
-		    allocation.width, allocation.height);
+	    gtk_form_render_background(child, cr);
 	}
     }
 
@@ -879,11 +896,15 @@ gtk_form_attach_child_window(GtkForm *form, GtkFormChild *child)
 				       &attributes, attributes_mask);
 	gdk_window_set_user_data(child->window, widget);
 
-#if GTK_CHECK_VERSION(3,18,0)
-	/* Do nothing */
-#elif GTK_CHECK_VERSION(3,0,0)
-	gtk_style_context_set_background(gtk_widget_get_style_context(widget),
-		child->window);
+#if GTK_CHECK_VERSION(3,0,0)
+	{
+	    GtkStyleContext * const sctx = gtk_widget_get_style_context(widget);
+
+	    gtk_style_context_set_state(sctx, GTK_STATE_FLAG_NORMAL);
+# if !GTK_CHECK_VERSION(3,18,0)
+	    gtk_style_context_set_background(sctx, child->window);
+# endif
+	}
 #else
 	gtk_style_set_background(widget->style,
 				 child->window,
