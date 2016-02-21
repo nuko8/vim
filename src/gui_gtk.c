@@ -900,13 +900,14 @@ gui_mch_menu_set_tip(vimmenu_T *menu)
 	char_u *tooltip;
 
 	tooltip = CONVERT_TO_UTF8(menu->strings[MENU_INDEX_TIP]);
-	if (tooltip == NULL || utf_valid_string(tooltip, NULL))
+	if (tooltip != NULL && utf_valid_string(tooltip, NULL))
 # if GTK_CHECK_VERSION(3,0,0)
-        gtk_widget_set_tooltip_text(menu->id, (const gchar *)tooltip);
+	    /* Only set the tooltip when it's valid utf-8. */
+	    gtk_widget_set_tooltip_text(menu->id, (const gchar *)tooltip);
 # else
 	    /* Only set the tooltip when it's valid utf-8. */
-	gtk_tooltips_set_tip(GTK_TOOLBAR(gui.toolbar)->tooltips,
-			     menu->id, (const char *)tooltip, NULL);
+	    gtk_tooltips_set_tip(GTK_TOOLBAR(gui.toolbar)->tooltips,
+				 menu->id, (const char *)tooltip, NULL);
 # endif
 	CONVERT_TO_UTF8_FREE(tooltip);
     }
