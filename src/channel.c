@@ -365,9 +365,9 @@ messageFromNetbeans(XtPointer clientData,
     static gboolean
 messageFromNetbeans(GIOChannel *unused1 UNUSED,
                     GIOCondition unused2 UNUSED,
-                    gpointer clientData UNUSED)
+                    gpointer clientData)
 {
-    channel_read_netbeans(GPOINTER_TO_INT(clientData));
+    channel_read_fd(GPOINTER_TO_INT(clientData));
     return TRUE; /* Return FALSE instead in case the event source is to
                   * be removed after this function returns. */
 }
