@@ -91,7 +91,6 @@ extern void bonobo_dock_item_set_behavior(BonoboDockItem *dock_item, BonoboDockI
 # else
 #  include <gdk/gdkx.h>
 # endif
-
 # include <gtk/gtk.h>
 # include "gui_gtk_f.h"
 #endif
@@ -618,6 +617,7 @@ visibility_event(GtkWidget *widget UNUSED,
  */
 #if GTK_CHECK_VERSION(3,0,0)
 static gboolean is_key_pressed = FALSE;
+
 static gboolean gui_gtk_is_blink_on(void);
 static gboolean gui_gtk_is_no_blink(void);
 static void gui_gtk_window_clear(GdkWindow *win);
@@ -751,14 +751,15 @@ property_event(GtkWidget *widget,
 	xev.xproperty.window = commWindow;
 	xev.xproperty.state = PropertyNewValue;
 # if GTK_CHECK_VERSION(3,0,0)
-	serverEventProc(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(widget)), &xev, 0);
+	serverEventProc(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(widget)),
+		&xev, 0);
 # else
 	serverEventProc(GDK_WINDOW_XDISPLAY(widget->window), &xev, 0);
 # endif
     }
     return FALSE;
 }
-#endif
+#endif /* defined(FEAT_CLIENTSERVER) */
 
 
 /****************************************************************************
@@ -1284,11 +1285,11 @@ key_release_event(GtkWidget *widget UNUSED,
 		  GdkEventKey *event,
 		  gpointer data UNUSED)
 {
-#if GTK_CHECK_VERSION(3,0,0)
+# if GTK_CHECK_VERSION(3,0,0)
     is_key_pressed = FALSE;
     gui_mch_start_blink();
-#endif
-#if defined(FEAT_XIM)
+# endif
+# if defined(FEAT_XIM)
     gui.event_time = event->time;
     /*
      * GTK+ 2 input methods may do fancy stuff on key release events too.
@@ -1296,9 +1297,9 @@ key_release_event(GtkWidget *widget UNUSED,
      * by holding down CTRL-SHIFT and typing hexadecimal digits.
      */
     return xim_queue_key_press_event(event, FALSE);
-#else
+# else
     return TRUE;
-#endif
+# endif
 }
 #endif
 
@@ -1468,7 +1469,8 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
     VimClipboard    *cbd;
 
 #if GTK_CHECK_VERSION(3,0,0)
-    if (gtk_selection_data_get_selection(selection_data) == clip_plus.gtk_sel_atom)
+    if (gtk_selection_data_get_selection(selection_data)
+	    == clip_plus.gtk_sel_atom)
 #else
     if (selection_data->selection == clip_plus.gtk_sel_atom)
 #endif
@@ -1798,6 +1800,15 @@ process_motion_notify(int x, int y, GdkModifierType state)
 }
 
 #if GTK_CHECK_VERSION(3,0,0)
+    static GdkDevice *
+gui_gtk_get_pointer_device(GtkWidget *widget)
+{
+    GdkWindow * const win = gtk_widget_get_window(widget);
+    GdkDisplay * const dpy = gdk_window_get_display(win);
+    GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
+    return gdk_device_manager_get_client_pointer(mngr);
+}
+
     static GdkWindow *
 gui_gtk_get_pointer(GtkWidget       *widget,
                     gint            *x,
@@ -1805,10 +1816,17 @@ gui_gtk_get_pointer(GtkWidget       *widget,
                     GdkModifierType *state)
 {
     GdkWindow * const win = gtk_widget_get_window(widget);
-    GdkDisplay * const dpy = gdk_window_get_display(win);
-    GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
-    GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
+    GdkDevice * const dev = gui_gtk_get_pointer_device(widget);
     return gdk_window_get_device_position(win, dev , x, y, state);
+}
+
+    static GdkWindow *
+gui_gtk_window_at_position(GtkWidget *widget,
+	                   gint      *x,
+			   gint      *y)
+{
+    GdkDevice * const dev = gui_gtk_get_pointer_device(widget);
+    return gdk_device_get_window_at_position(dev, x, y);
 }
 #endif
 
@@ -2161,8 +2179,8 @@ drag_handle_uri_list(GdkDragContext	*context,
 
 # if GTK_CHECK_VERSION(3,0,0)
     fnames = parse_uri_list(&nfiles,
-                            (char_u *)gtk_selection_data_get_data(data),
-                            gtk_selection_data_get_length(data));
+	    (char_u *)gtk_selection_data_get_data(data),
+	    gtk_selection_data_get_length(data));
 # else
     fnames = parse_uri_list(&nfiles, data->data, data->length);
 # endif
@@ -2241,10 +2259,14 @@ drag_data_received_cb(GtkWidget		*widget,
 
     /* Guard against trash */
 # if GTK_CHECK_VERSION(3,0,0)
-    if (gtk_selection_data_get_data(data) == NULL
-            || gtk_selection_data_get_length(data) <= 0
-            || gtk_selection_data_get_format(data) != 8
-            || gtk_selection_data_get_data(data)[gtk_selection_data_get_length(data)] != '\0')
+    const guchar * const data_data = gtk_selection_data_get_data(data);
+    const gint data_length = gtk_selection_data_get_length(data);
+    const gint data_format = gtk_selection_data_get_format(data);
+
+    if (data_data == NULL
+            || data_length <= 0
+            || data_format != 8
+            || data_data[data_length] != '\0')
 # else
     if (data->data == NULL
 	    || data->length <= 0
@@ -2553,6 +2575,7 @@ setup_save_yourself(void)
 
 	g_io_add_watch(g_io, G_IO_IN | G_IO_ERR | G_IO_HUP,
 				  local_xsmp_handle_requests, (gpointer)g_io);
+	g_io_channel_unref(g_io);
     }
     else
 # endif
@@ -2561,8 +2584,10 @@ setup_save_yourself(void)
 
 	/* first get the existing value */
 # if GTK_CHECK_VERSION(3,0,0)
-	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
-                    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
+	GdkWindow * const mainwin_win = gtk_widget_get_window(gui.mainwin);
+
+	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(mainwin_win),
+                    GDK_WINDOW_XID(mainwin_win),
 		    &existing_atoms, &count))
 # else
 	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
@@ -2591,8 +2616,8 @@ setup_save_yourself(void)
 		    memcpy(new_atoms, existing_atoms, count * sizeof(Atom));
 		    new_atoms[count] = save_yourself_xatom;
 # if GTK_CHECK_VERSION(3,0,0)
-		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
-			    GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)),
+		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(mainwin_win),
+			    GDK_WINDOW_XID(mainwin_win),
 # else
 		    XSetWMProtocols(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 			    GDK_WINDOW_XWINDOW(gui.mainwin->window),
@@ -2681,11 +2706,15 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 #undef magick
 # undef static
 
+#if GTK_CHECK_VERSION(3,0,0)
+    GdkWindow * const mainwin_win = gtk_widget_get_window(gui.mainwin);
+#endif
+
     /* When started with "--echo-wid" argument, write window ID on stdout. */
     if (echo_wid_arg)
     {
 #if GTK_CHECK_VERSION(3,0,0)
-	printf("WID: %ld\n", (long)GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)));
+	printf("WID: %ld\n", (long)GDK_WINDOW_XID(mainwin_win));
 #else
 	printf("WID: %ld\n", (long)GDK_WINDOW_XWINDOW(gui.mainwin->window));
 #endif
@@ -2726,9 +2755,9 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     {
 	/* This is a :gui command in a plain vim with no previous server */
 # if GTK_CHECK_VERSION(3,0,0)
-	commWindow = GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin));
+	commWindow = GDK_WINDOW_XID(mainwin_win);
 
-	(void)serverRegisterName(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+	(void)serverRegisterName(GDK_WINDOW_XDISPLAY(mainwin_win),
 				 serverDelayedStartName);
 # else
 	commWindow = GDK_WINDOW_XWINDOW(gui.mainwin->window);
@@ -2745,8 +2774,8 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 	 * If we have not registered a name yet, remember the window
 	 */
 # if GTK_CHECK_VERSION(3,0,0)
-	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
-				     GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin)));
+	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(mainwin_win),
+				     GDK_WINDOW_XID(mainwin_win));
 # else
 	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(gui.mainwin->window),
 				     GDK_WINDOW_XWINDOW(gui.mainwin->window));
@@ -2848,7 +2877,8 @@ mainwin_screen_changed_cb(GtkWidget  *widget,
 
 # if GTK_CHECK_VERSION(3,0,0)
     if (gui.pointer_hidden && gtk_widget_get_window(gui.drawarea) != NULL)
-	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), gui.blank_pointer);
+	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea),
+		gui.blank_pointer);
 # else
     if (gui.pointer_hidden && gui.drawarea->window != NULL)
 	gdk_window_set_cursor(gui.drawarea->window, gui.blank_pointer);
@@ -2892,7 +2922,8 @@ drawarea_realize_cb(GtkWidget *widget, gpointer data UNUSED)
 #endif
     gui_mch_new_colors();
 #if GTK_CHECK_VERSION(3,0,0)
-    gui.surface = gdk_window_create_similar_surface(gtk_widget_get_window(widget),
+    gui.surface = gdk_window_create_similar_surface(
+	    gtk_widget_get_window(widget),
             CAIRO_CONTENT_COLOR_ALPHA,
             gtk_widget_get_allocated_width(widget),
             gtk_widget_get_allocated_height(widget));
@@ -2993,8 +3024,8 @@ drawarea_configure_event_cb(GtkWidget         *widget,
     static int cur_width = 0;
     static int cur_height = 0;
 
-    g_return_val_if_fail(event &&
-	    event->width >= 1 && event->height >= 1, TRUE);
+    g_return_val_if_fail(event
+	    && event->width >= 1 && event->height >= 1, TRUE);
 
     if (event->width == cur_width && event->height == cur_height)
 	return TRUE;
@@ -3400,13 +3431,7 @@ on_tabline_menu(GtkWidget *widget, GdkEvent *event)
 	    return TRUE;
 
 # if GTK_CHECK_VERSION(3,0,0)
-        {
-            GdkWindow * const win = gtk_widget_get_window(gui.mainwin);
-            GdkDisplay * const dpy = gdk_window_get_display(win);
-            GdkDeviceManager * const mngr = gdk_display_get_device_manager(dpy);
-            GdkDevice * const dev = gdk_device_manager_get_client_pointer(mngr);
-            tabwin = gdk_device_get_window_at_position(dev, &x, &y);
-        }
+	tabwin = gui_gtk_window_at_position(gui.mainwin, &x, &y);
 # else
 	tabwin = gdk_window_at_pointer(&x, &y);
 # endif
@@ -3897,6 +3922,8 @@ gui_mch_init(void)
     /* some aesthetics on the toolbar */
 # ifdef USE_GTK3
     /* TODO: Add GTK+ 3 code here using GtkCssProvider if neccessary. */
+    /* N.B.  Since the default value of GtkToolbar::button-relief is
+     * GTK_RELIEF_NONE, there's no need to specify that, probably. */
 # else
     gtk_rc_parse_string(
 	    "style \"vim-toolbar-style\" {\n"
@@ -4053,7 +4080,7 @@ gui_mch_init(void)
      * modules.  Try CTRL-SHIFT-xdigits to enter a Unicode code point. */
     g_signal_connect((gtk_socket_id == 0) ? G_OBJECT(gui.mainwin)
 					  : G_OBJECT(gui.drawarea),
-		     "key_release_event",
+		     "key-release-event",
 		     G_CALLBACK(&key_release_event), NULL);
 #endif
 #if GTK_CHECK_VERSION(3,0,0)
@@ -4277,7 +4304,40 @@ gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkRGBA *result)
     result->blue = ((pixel & b_mask) >> b_shift) / 255.0;
     result->alpha = 1.0;
 }
-#endif
+
+/* Convert a GdRGBA into a pixel value using drawarea's visual */
+    static guint32
+gui_gtk_get_pixel_from_rgb(const GdkRGBA *rgba)
+{
+    GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
+    guint32 r_mask, g_mask, b_mask;
+    gint r_shift, g_shift, b_shift;
+    guint32 r, g, b;
+
+    if (visual == NULL)
+        return 0;
+
+    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
+    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
+    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
+
+    r = rgba->red * 65535;
+    g = rgba->green * 65535;
+    b = rgba->blue * 65535;
+
+    return ((r << r_shift) & r_mask) |
+           ((g << g_shift) & g_mask) |
+           ((b << b_shift) & b_mask);
+}
+
+    static void
+set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
+{
+    GdkRGBA result;
+    gui_gtk_get_rgb_from_pixel(pixel, &result);
+    cairo_set_source_rgb(cr, result.red, result.green, result.blue);
+}
+#endif /* GTK_CHECK_VERSION(3,0,0) */
 
 /*
  * Called when the foreground or background color has been changed.
@@ -4288,7 +4348,7 @@ gui_gtk_get_rgb_from_pixel(guint32 pixel, GdkRGBA *result)
 gui_mch_new_colors(void)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-    GdkWindow * const win = gtk_widget_get_window(gui.drawarea);
+    GdkWindow * const da_win = gtk_widget_get_window(gui.drawarea);
 
     if (gui.drawarea != NULL && gtk_widget_get_window(gui.drawarea) != NULL)
 #else
@@ -4304,18 +4364,18 @@ gui_mch_new_colors(void)
 		    color.red, color.green, color.blue, color.alpha);
 	    if (pat != NULL)
 	    {
-		gdk_window_set_background_pattern(win, pat);
+		gdk_window_set_background_pattern(da_win, pat);
 		cairo_pattern_destroy(pat);
 	    }
 	    else
-		gdk_window_set_background_rgba(win, &color);
+		gdk_window_set_background_rgba(da_win, &color);
 	}
 #else /* !GTK_CHECK_VERSION(3,4,0) */
 	GdkColor color = { 0, 0, 0, 0 };
 
 	color.pixel = gui.back_pixel;
 # if GTK_CHECK_VERSION(3,0,0)
-	gdk_window_set_background(win, &color);
+	gdk_window_set_background(da_win, &color);
 # else
 	gdk_window_set_background(gui.drawarea->window, &color);
 # endif
@@ -5003,7 +5063,7 @@ gui_mch_font_dialog(char_u *oldval)
 #if GTK_CHECK_VERSION(3,2,0)
     dialog = gtk_font_chooser_dialog_new(NULL, NULL);
     gtk_font_chooser_set_filter_func(GTK_FONT_CHOOSER(dialog), font_filter,
-                                      NULL, NULL);
+	    NULL, NULL);
 #else
     dialog = gtk_font_selection_dialog_new(NULL);
 #endif
@@ -5035,7 +5095,7 @@ gui_mch_font_dialog(char_u *oldval)
 
 #if GTK_CHECK_VERSION(3,2,0)
         gtk_font_chooser_set_font(
-                GTK_FONT_CHOOSER(dialog), (const gchar *)oldname);
+		GTK_FONT_CHOOSER(dialog), (const gchar *)oldname);
 #else
 	gtk_font_selection_dialog_set_font_name(
 		GTK_FONT_SELECTION_DIALOG(dialog), (const char *)oldname);
@@ -5392,33 +5452,6 @@ gui_mch_free_font(GuiFont font)
 	pango_font_description_free(font);
 }
 
-#if GTK_CHECK_VERSION(3,0,0)
-/* Convert a GdRGBA into a pixel value using drawarea's visual */
-    static guint32
-gui_gtk_get_pixel_from_rgb(const GdkRGBA *rgba)
-{
-    GdkVisual * const visual = gtk_widget_get_visual(gui.drawarea);
-    guint32 r_mask, g_mask, b_mask;
-    gint r_shift, g_shift, b_shift;
-    guint32 r, g, b;
-
-    if (visual == NULL)
-        return 0;
-
-    gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
-    gdk_visual_get_green_pixel_details(visual, &g_mask, &g_shift, NULL);
-    gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
-
-    r = rgba->red * 65535;
-    g = rgba->green * 65535;
-    b = rgba->blue * 65535;
-
-    return ((r << r_shift) & r_mask) |
-           ((g << g_shift) & g_mask) |
-           ((b << b_shift) & b_mask);
-}
-#endif
-
 /*
  * Return the Pixel value (color) for the given color name.  This routine was
  * pretty much taken from example code in the Silicon Graphics OSF/Motif
@@ -5679,16 +5712,6 @@ setup_zero_width_cluster(PangoItem *item, PangoGlyphInfo *glyph,
 	 * in the middle. */
 	glyph->geometry.x_offset = -width + MAX(0, width - ink_rect.width) / 2;
 }
-
-#if GTK_CHECK_VERSION(3,0,0)
-    static void
-set_cairo_source_rgb_from_pixel(cairo_t *cr, guint32 pixel)
-{
-    GdkRGBA result;
-    gui_gtk_get_rgb_from_pixel(pixel, &result);
-    cairo_set_source_rgb(cr, result.red, result.green, result.blue);
-}
-#endif
 
 #if GTK_CHECK_VERSION(3,0,0)
     static void
@@ -6861,7 +6884,8 @@ clip_mch_request_selection(VimClipboard *cbd)
 
     /* Final fallback position - use the X CUT_BUFFER0 store */
 #if GTK_CHECK_VERSION(3,0,0)
-    yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)), cbd);
+    yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+	    cbd);
 #else
     yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gui.mainwin->window), cbd);
 #endif
@@ -7082,7 +7106,8 @@ gui_mch_mousehide(int hide)
 	{
 	    if (hide)
 #if GTK_CHECK_VERSION(3,0,0)
-		gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), gui.blank_pointer);
+		gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea),
+			gui.blank_pointer);
 #else
 		gdk_window_set_cursor(gui.drawarea->window, gui.blank_pointer);
 #endif
@@ -7136,7 +7161,8 @@ mch_set_mouse_shape(int shape)
 
     if (shape == MSHAPE_HIDE || gui.pointer_hidden)
 # if GTK_CHECK_VERSION(3,0,0)
-	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea), gui.blank_pointer);
+	gdk_window_set_cursor(gtk_widget_get_window(gui.drawarea),
+		gui.blank_pointer);
 # else
 	gdk_window_set_cursor(gui.drawarea->window, gui.blank_pointer);
 # endif
@@ -7275,16 +7301,16 @@ gui_mch_drawsign(int row, int col, int typenr)
 
             cr = cairo_create(gui.surface);
 
-            bg_surf = cairo_surface_create_similar(cairo_get_target(cr),
-                                                   CAIRO_CONTENT_COLOR,
-                                                   SIGN_WIDTH, SIGN_HEIGHT);
+            bg_surf = cairo_surface_create_similar(gui.surface,
+		    cairo_surface_get_content(gui.surface),
+		    SIGN_WIDTH, SIGN_HEIGHT);
             bg_cr = cairo_create(bg_surf);
             set_cairo_source_rgb_from_pixel(bg_cr, gui.bgcolor->pixel);
             cairo_paint(bg_cr);
 
-            sign_surf = cairo_surface_create_similar(cairo_get_target(cr),
-                                                     CAIRO_CONTENT_COLOR,
-                                                     SIGN_WIDTH, SIGN_HEIGHT);
+            sign_surf = cairo_surface_create_similar(gui.surface,
+		    cairo_surface_get_content(gui.surface),
+		    SIGN_WIDTH, SIGN_HEIGHT);
             sign_cr = cairo_create(sign_surf);
             gdk_cairo_set_source_pixbuf(sign_cr, sign, -xoffset, -yoffset);
             cairo_paint(sign_cr);

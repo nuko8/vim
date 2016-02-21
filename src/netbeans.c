@@ -426,6 +426,7 @@ netbeans_parse_messages(void)
 	}
     }
 }
+
 /*
  * Handle one NUL terminated command.
  *
@@ -3055,8 +3056,7 @@ netbeans_draw_multisign_indicator(int row)
     int y;
     int x;
 #if GTK_CHECK_VERSION(3,0,0)
-    GdkWindow   *window = gtk_widget_get_window(gui.drawarea);
-    cairo_t     *cr = NULL;
+    cairo_t *cr = NULL;
 #else
     GdkDrawable *drawable = gui.drawarea->window;
 #endif
@@ -3065,13 +3065,13 @@ netbeans_draw_multisign_indicator(int row)
 	return;
 
 #if GTK_CHECK_VERSION(3,0,0)
-    cr = gdk_cairo_create(window);
+    cr = cairo_create(gui.surface);
     {
         GdkVisual *visual = NULL;
         guint32 r_mask, g_mask, b_mask;
         gint r_shift, g_shift, b_shift;
 
-        visual = gdk_window_get_visual(window);
+        visual = gdk_window_get_visual(gtk_widget_get_window(gui.drawarea));
         if (visual != NULL)
         {
             gdk_visual_get_red_pixel_details(visual, &r_mask, &r_shift, NULL);
@@ -3079,9 +3079,9 @@ netbeans_draw_multisign_indicator(int row)
             gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift, NULL);
 
             cairo_set_source_rgb(cr,
-                                 ((gui.fgcolor->red & r_mask) >> r_shift) / 255.0,
-                                 ((gui.fgcolor->green & g_mask) >> g_shift) / 255.0,
-                                 ((gui.fgcolor->blue & b_mask) >> b_shift) / 255.0);
+		    ((gui.fgcolor->red & r_mask) >> r_shift) / 255.0,
+		    ((gui.fgcolor->green & g_mask) >> g_shift) / 255.0,
+		    ((gui.fgcolor->blue & b_mask) >> b_shift) / 255.0);
         }
     }
 #endif

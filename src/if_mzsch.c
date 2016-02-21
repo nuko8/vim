@@ -852,7 +852,11 @@ static int mz_threads_allow = 0;
 static void CALLBACK timer_proc(HWND, UINT, UINT, DWORD);
 static UINT timer_id = 0;
 #elif defined(FEAT_GUI_GTK)
+# if GTK_CHECK_VERSION(3,0,0)
+static gboolean timer_proc(gpointer);
+# else
 static gint timer_proc(gpointer);
+# endif
 static guint timer_id = 0;
 #elif defined(FEAT_GUI_MOTIF) || defined(FEAT_GUI_ATHENA)
 static void timer_proc(XtPointer, XtIntervalId *);
@@ -894,9 +898,9 @@ timer_proc(HWND hwnd UNUSED, UINT uMsg UNUSED, UINT idEvent UNUSED, DWORD dwTime
 # elif defined(FEAT_GUI_GTK)
 #  if GTK_CHECK_VERSION(3,0,0)
     static gboolean
-#else
+#  else
     static gint
-#endif
+#  endif
 timer_proc(gpointer data UNUSED)
 # elif defined(FEAT_GUI_MOTIF) || defined(FEAT_GUI_ATHENA)
     static void
@@ -943,11 +947,11 @@ remove_timer(void)
 # if defined(FEAT_GUI_W32)
     KillTimer(NULL, timer_id);
 # elif defined(FEAT_GUI_GTK)
-   #if GTK_CHECK_VERSION(3,0,0)
+#  if GTK_CHECK_VERSION(3,0,0)
     g_source_remove(timer_id);
-   #else
+#  else
     gtk_timeout_remove(timer_id);
-   #endif
+#  endif
 # elif defined(FEAT_GUI_MOTIF) || defined(FEAT_GUI_ATHENA)
     XtRemoveTimeOut(timer_id);
 # elif defined(FEAT_GUI_MAC)

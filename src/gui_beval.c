@@ -124,7 +124,6 @@ general_beval_cb(BalloonEval *beval, int state UNUSED)
 #ifdef FEAT_GUI_GTK
 # if GTK_CHECK_VERSION(3,0,0)
 #  include <gdk/gdkkeysyms-compat.h>
-#  include <gdk/gdkx.h>
 # else
 #  include <gdk/gdkkeysyms.h>
 # endif
@@ -762,7 +761,7 @@ balloon_expose_event_cb(GtkWidget *widget,
 
     return FALSE; /* continue emission */
 }
-# endif
+# endif /* !GTK_CHECK_VERSION(3,0,0) */
 
 #else /* !FEAT_GUI_GTK */
 
@@ -1067,9 +1066,9 @@ set_printable_label_text(GtkLabel *label, char_u *text)
                 gdk_visual_get_blue_pixel_details(visual, &b_mask, &b_shift,
                                                   NULL);
 
-                color.red = ((pixel & r_mask) >> r_shift) << 8;
-                color.green = ((pixel & g_mask) >> g_shift) << 8;
-                color.blue = ((pixel & b_mask) >> b_shift) << 8;
+                color.red = ((pixel & r_mask) >> r_shift) / 255.0 * 65535;
+                color.green = ((pixel & g_mask) >> g_shift) / 255.0 * 65535;
+                color.blue = ((pixel & b_mask) >> b_shift) / 255.0 * 65535;
             }
         }
 # else

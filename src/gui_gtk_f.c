@@ -70,7 +70,7 @@ static void gtk_form_size_allocate(GtkWidget *widget,
 				   GtkAllocation *allocation);
 #if GTK_CHECK_VERSION(3,0,0)
 static gboolean gtk_form_draw(GtkWidget *widget,
-                              cairo_t   *cr);
+                              cairo_t *cr);
 #else
 static gint gtk_form_expose(GtkWidget *widget,
 			    GdkEventExpose *event);
@@ -176,7 +176,8 @@ gtk_form_put(GtkForm	*form,
 #endif
 
 #if GTK_CHECK_VERSION(3,0,0)
-    if (gtk_widget_get_realized(GTK_WIDGET(form)) && !gtk_widget_get_realized(child_widget))
+    if (gtk_widget_get_realized(GTK_WIDGET(form))
+	    && !gtk_widget_get_realized(child_widget))
 #else
     if (GTK_WIDGET_REALIZED(form) && !GTK_WIDGET_REALIZED(child_widget))
 #endif
@@ -258,7 +259,7 @@ gtk_form_get_type(void)
     }
     return form_type;
 }
-#endif
+#endif /* !GTK_CHECK_VERSION(3,0,0) */
 
     static void
 gtk_form_class_init(GtkFormClass *klass)
@@ -356,7 +357,7 @@ gtk_form_realize(GtkWidget *widget)
     attributes.wclass = GDK_INPUT_OUTPUT;
     attributes.visual = gtk_widget_get_visual(widget);
 #if GTK_CHECK_VERSION(3,0,0)
-    attributes.event_mask = gtk_widget_get_events(widget);
+    attributes.event_mask = GDK_EXPOSURE_MASK;
 #else
     attributes.colormap = gtk_widget_get_colormap(widget);
     attributes.event_mask = GDK_VISIBILITY_NOTIFY_MASK;
@@ -411,7 +412,9 @@ gtk_form_realize(GtkWidget *widget)
     widget->style = gtk_style_attach(widget->style, widget->window);
     gtk_style_set_background(widget->style, widget->window, GTK_STATE_NORMAL);
     gtk_style_set_background(widget->style, form->bin_window, GTK_STATE_NORMAL);
+#endif
 
+#if !GTK_CHECK_VERSION(3,0,0)
     gdk_window_add_filter(widget->window, gtk_form_main_filter, form);
     gdk_window_add_filter(form->bin_window, gtk_form_filter, form);
 #endif
@@ -502,11 +505,11 @@ gtk_form_unrealize(GtkWidget *widget)
 	{
 #if GTK_CHECK_VERSION(3,0,0)
 	    g_signal_handlers_disconnect_by_func(G_OBJECT(child->widget),
-                                                 G_CALLBACK(gtk_form_child_map),
-                                                 child);
+		    G_CALLBACK(gtk_form_child_map),
+		    child);
 	    g_signal_handlers_disconnect_by_func(G_OBJECT(child->widget),
-                                                 G_CALLBACK(gtk_form_child_unmap),
-                                                 child);
+		    G_CALLBACK(gtk_form_child_unmap),
+		    child);
 #else
 	    gtk_signal_disconnect_by_func(GTK_OBJECT(child->widget),
 					  GTK_SIGNAL_FUNC(gtk_form_child_map),
@@ -694,10 +697,9 @@ gtk_form_draw(GtkWidget *widget, cairo_t *cr)
     form = GTK_FORM(widget);
     for (tmp_list = form->children; tmp_list; tmp_list = tmp_list->next)
     {
-	GtkFormChild	*formchild = tmp_list->data;
-	GtkWidget	*child	   = formchild->widget;
+	GtkFormChild * const formchild = tmp_list->data;
 
-	if (!gtk_widget_get_has_window(child) &&
+	if (!gtk_widget_get_has_window(formchild->widget) &&
 		gtk_cairo_should_draw_window(cr, formchild->window))
 	{
 	    /* To get gtk_widget_draw() to work, it is required to call
@@ -712,7 +714,7 @@ gtk_form_draw(GtkWidget *widget, cairo_t *cr)
 	     * to make sure of that. */
 	    gtk_form_position_child(form, formchild, TRUE);
 
-	    gtk_form_render_background(child, cr);
+	    gtk_form_render_background(formchild->widget, cr);
 	}
     }
 
@@ -973,8 +975,8 @@ gtk_form_position_child(GtkForm *form, GtkFormChild *child,
 	if (!child->mapped)
 	{
 #if GTK_CHECK_VERSION(3,0,0)
-            if (gtk_widget_get_mapped(GTK_WIDGET(form)) &&
-		gtk_widget_get_visible(child->widget))
+            if (gtk_widget_get_mapped(GTK_WIDGET(form))
+		    && gtk_widget_get_visible(child->widget))
 #else
 	    if (GTK_WIDGET_MAPPED(form) && GTK_WIDGET_VISIBLE(child->widget))
 #endif

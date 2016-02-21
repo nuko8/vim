@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 #define GTK_TYPE_FORM		       (gtk_form_get_type ())
-#if USE_GTK3
+#ifdef USE_GTK3
 #define GTK_FORM(obj)                  (G_TYPE_CHECK_INSTANCE_CAST((obj), GTK_TYPE_FORM, GtkForm))
 #define GTK_FORM_CLASS(klass)          (G_TYPE_CHECK_CLASS_CAST((klass), GTK_TYPE_FORM, GtkFormClass))
 #define GTK_IS_FORM(obj)               (G_TYPE_CHECK_INSTANCE_TYPE((obj), GTK_TYPE_FORM))
@@ -53,8 +53,8 @@ struct _GtkForm
 
 #ifndef USE_GTK3
     GdkVisibilityState visibility;
-#endif
     gulong configure_serial;
+#endif
 
     gint freeze_count;
 };

@@ -5067,7 +5067,8 @@ im_synthesize_keypress(unsigned int keyval, unsigned int state)
 #  ifdef HAVE_GTK_MULTIHEAD
     event = (GdkEventKey *)gdk_event_new(GDK_KEY_PRESS);
 #   if GTK_CHECK_VERSION(3,0,0)
-    g_object_ref(gtk_widget_get_window(gui.drawarea)); /* unreffed by gdk_event_free() */
+    g_object_ref(gtk_widget_get_window(gui.drawarea));
+					/* unreffed by gdk_event_free() */
 #   else
     g_object_ref(gui.drawarea->window); /* unreffed by gdk_event_free() */
 #   endif
